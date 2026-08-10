@@ -36,6 +36,41 @@ announced. A session-bearing read is a Rookie+ affair.
 Drift and fail budgets **tighten** as trust rises — the most powerful rung is
 held to the strictest tolerances, not the loosest.
 
+### Read is universal — and embedders must not inherit that
+
+`read` is granted **by construction, not by tier**. It is not read out of
+`allowed_tools`:
+
+- `check_in` unions it into whatever the header declares —
+  `declared <= (set(level.allowed_tools) | {READ_TOOL})`
+- `authorize_tool` short-circuits it — `if tool != READ_TOOL and tool not in
+  granted_tools`
+
+So a level whose `allowed_tools` is empty still reads. The only thing that
+withholds read is **entry**: Exiled is `entry_allowed=False` and refused at
+check-in, so it never gets a session to read from. Read-universal therefore means
+*universal among agents who may enter*, not universal full stop — which is why
+the table above says "read (session-less)" for level 0.
+
+**This is a deliberate choice about willow-gate's own decisions, and it is a
+floor, not an entitlement you may hand to a host.** The gate answers "may this
+session call this class?" — it does not know what your reads expose. A host with
+its own ACL, tenancy, or scoping must compose by **intersection** and stay
+fail-closed, so that embedding willow-gate can only ever *narrow* what a caller
+may read, never widen it:
+
+```
+effective = host_acl(identity) ∩ tier_ceiling(trust_level)
+```
+
+The reference embedding does exactly this. willow-mcp denies an unmanifested or
+unscoped `app_id` even for `read`, and its `store_scope` still confines which
+collections a permitted read may touch — willow-gate's read-universality does
+not survive that seam, by design. If you are wiring the gate into something with
+its own notion of who may see what, state which side wins before you ship it.
+Inheriting this rule by accident is how a gate that was supposed to restrict an
+agent quietly hands it a wider read surface than the host ever granted.
+
 ## Enforcement vs. audit — read this first
 
 WillowGate **prevents** only when a harness routes every tool call through
