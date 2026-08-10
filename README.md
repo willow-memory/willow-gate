@@ -74,6 +74,12 @@ pins the behavior.
 pip install -e .        # python-gnupg is required for the encrypted ledger
 ```
 
+Deploying for real use needs `/willowgate` provisioned first — the gate's
+security properties rest on filesystem permissions the code does not set itself,
+and the choice between in-process and supervisor topology decides whether the
+earned-rung protection holds at all. See
+[`docs/deployment-runbook.md`](docs/deployment-runbook.md).
+
 ## Quickstart
 
 ```python
@@ -106,7 +112,9 @@ the raw `gate.authorize_tool(session, "read")` only when you are wiring an
 external pre-tool hook yourself.
 
 For local logic testing without PGP, pass `require_pgp=False` — this writes a
-plaintext ledger and is for development only, never production.
+plaintext ledger and is for development only, never production. Pair it with
+`base_dir=` so it does not try to create `/willowgate`; the default base dir is
+absolute by design (see the runbook).
 
 ## Tests
 
