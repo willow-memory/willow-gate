@@ -54,6 +54,8 @@ try:
 except Exception:  # pragma: no cover - optional at import time, required at run
     gnupg = None
 
+from willow_gate.trust_scale import Trust, at_least, from_int, outranks, to_int  # noqa: E402,F401
+
 
 # ─── Trust levels ────────────────────────────────────────────────────────────
 
@@ -249,7 +251,13 @@ class WillowGate:
 
     def _authenticate(self, header: Dict) -> int:
         """Verify the HMAC and return the EFFECTIVE trust level (claim capped by
-        the registered ceiling). HARDENED(2): trust is bound, not asserted."""
+        the registered ceiling). HARDENED(2): trust is bound, not asserted.
+
+        rule 14: the claim and the ceiling are wire ints (0..4), but the ceiling
+        check does not compare them as bare ints — each is lifted to `Trust`
+        first and compared with `outranks()`, which says "trust ladder" at the
+        call site instead of leaving that to be remembered. See
+        `trust_scale.py`."""
         agent_id = header["agent_id"]
         expected = self._expected_sig(agent_id, header)
         if expected is None:
@@ -258,7 +266,12 @@ class WillowGate:
             raise GateError("signature mismatch — identity not verified")
         claimed = int(header["trust_level"])
         ceiling = int(self._registry[agent_id]["max_trust"])
-        if claimed > ceiling:
+        try:
+            claimed_trust = from_int(claimed)
+            ceiling_trust = from_int(ceiling)
+        except ValueError as exc:
+            raise GateError(str(exc)) from None
+        if outranks(claimed_trust, ceiling_trust):
             raise GateError(
                 f"trust claim {claimed} exceeds registered ceiling {ceiling}")
         return claimed
