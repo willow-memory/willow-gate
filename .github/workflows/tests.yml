@@ -50,8 +50,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Floor and current for requires-python >= 3.10.
-        python-version: ["3.10", "3.12"]
+        # requires-python is >= 3.10 and pyproject declares no version
+        # classifiers, so there is no advertised range to match — the honest
+        # minimum is floor and ceiling, and the ceiling was never run here.
+        #
+        # Pull requests take floor and ceiling; push, schedule and dispatch
+        # take everything in between as well. Safe only because the required
+        # check is the aggregate `test` job below, never a matrix cell.
+        python-version: ${{ fromJSON(github.event_name == 'pull_request'
+          && '["3.10","3.13"]'
+          || '["3.10","3.11","3.12","3.13"]') }}
 
     steps:
       - uses: actions/checkout@v7
