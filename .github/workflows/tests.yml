@@ -28,6 +28,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          # hatch-vcs derives the version from tags; a shallow checkout has none.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:
@@ -63,6 +66,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # hatch-vcs derives the version from tags; a shallow checkout has none.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v7
         with:

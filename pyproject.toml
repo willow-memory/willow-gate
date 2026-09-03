@@ -1,10 +1,14 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "willow-gate"
-version = "0.1.0"
+# The git tag is the single source of truth — see [tool.hatch.version]. The
+# version is deliberately not a literal here, same as forge-play and willow-mcp:
+# a literal goes unbumped, and this file carried `0.1.0` with no tag and no
+# release, a number that was never true of anything installed.
+dynamic = ["version"]
 description = "Minimalist symmetric check-in/check-out gate: trust-tiered access, announce-loud-for-the-untrusted, PGP-encrypted ledger, hard stops."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,6 +18,19 @@ dependencies = ["python-gnupg>=0.5", "cryptography>=41"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+
+[tool.hatch.version]
+# Derived from the git tag (hatch-vcs). At an exact tag `vX.Y.Z` the version is
+# X.Y.Z; off-tag builds get a `.devN+g<sha>` suffix PyPI rejects, so a publish
+# from an untagged commit fails loudly instead of shipping something
+# mislabelled. CI must check out with `fetch-depth: 0` or no tags are present.
+#
+# No tag exists yet; `.release-please-manifest.json` starts at 0.0.0 and
+# `release-please-config.json` sets initial-version 0.1.0 so the first release
+# is v0.1.0, not release-please's default 1.0.0. Cutting a release is
+# release-please's job — let it pick the number from the commits rather than
+# tagging by hand.
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/willow_gate"]
