@@ -1,0 +1,69 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "willow-gate",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": false,
+      "bump-patch-for-minor-pre-major": false,
+      "include-component-in-tag": false,
+      "changelog-sections": [
+        {
+          "type": "feat",
+          "section": "Added"
+        },
+        {
+          "type": "fix",
+          "section": "Fixed"
+        },
+        {
+          "type": "security",
+          "section": "Security"
+        },
+        {
+          "type": "perf",
+          "section": "Performance"
+        },
+        {
+          "type": "refactor",
+          "section": "Changed"
+        },
+        {
+          "type": "build",
+          "section": "Build"
+        },
+        {
+          "type": "deps",
+          "section": "Build"
+        },
+        {
+          "type": "docs",
+          "section": "Docs",
+          "hidden": true
+        },
+        {
+          "type": "test",
+          "section": "Tests",
+          "hidden": true
+        },
+        {
+          "type": "ci",
+          "section": "CI",
+          "hidden": true
+        },
+        {
+          "type": "chore",
+          "section": "Chores",
+          "hidden": true
+        }
+      ],
+      "initial-version": "0.1.0"
+    }
+  },
+  "$comment-versioning": "release-type 'simple' maintains CHANGELOG.md and the tag and edits no version file \u2014 correct here because hatch-vcs derives the version from the tag, so there is no second copy to keep in step. bump-minor-pre-major is FALSE with bump-patch-for-minor-pre-major false, so below 1.0: feat -> minor, fix and everything unlabelled -> patch, and a breaking change -> 1.0.0. Verified against release-please 17.11.1's DefaultVersioningStrategy rather than inferred: at 0.5.1, breaking -> 1.0.0, feat -> 0.6.0, fix -> 0.5.2. WHY IT CHANGED. bump-minor-pre-major used to be true, which kept a breaking change at a minor so that reaching 1.0 stayed a decision someone makes rather than one a commit message makes. The cost of that was paid by dependents: a `<1.0.0` cap was not a compatibility range, because it accepted every version this config could produce. willow-mcp tried closing it downstream with `jeles>=0.5.1,<0.6.0` and withdrew it \u2014 a tight cap also blocks this package's SECURITY patches (willow_institutional_search's SSRF defence lives in jeles/_egress.py, not in willow-mcp), and it does not catch the realistic break anyway, since an unlabelled breaking `refactor:` bumps a patch and clears any cap. So the fix belongs here: `<1.0.0` now means something, and 1.0 arrives when the code breaks compatibility rather than when someone declares it. Across 99 commits and 8 tags this package has never had a breaking change, so that trigger is rare, not hair-priced. WHAT STILL IS NOT GUARANTEED: this keys off the commit type, so it only holds when a breaking change is actually written `feat!:` or carries a BREAKING CHANGE footer. A break mislabelled as `refactor:` still ships as a patch. Dependents catch that with a contract test against the really-installed package \u2014 see willow-mcp's docs/design/fleet-versioning.md Rule 1 and its tests/test_fleet_versioning.py.",
+  "$comment-sections": "Section names mirror Keep a Changelog, which willow-mcp's CHANGELOG already follows. Commit types outside this list (the fleet also uses hooks:, gate:, skills:, server:, envelopes:) are ignored for both the changelog and the version bump.",
+  "$comment-what-cuts-a-release": "EVERY type listed above without \"hidden\": true cuts a release on its own \u2014 not just feat and fix. This comment previously claimed otherwise, and it was wrong: v0.4.1 was tagged and published to PyPI for a single ci: commit that changed a workflow file and nothing a user installs. That was survivable while releases were merged by hand, because you saw what was in them; release-please.yml now arms auto-merge, so an un-hidden type ships to PyPI unattended, and a PyPI version can never be reused.",
+  "$comment-hidden-rule": "The line is: does this commit change what someone gets from `pip install willow-gate`? docs/test/ci do not \u2014 tests and workflows are not packaged, and a README edit only moves the PyPI page \u2014 so they are hidden and ride along with the next real release. build and deps stay visible because a dependency or packaging change genuinely alters the installed artifact, and hiding them would mean a dependency fix never reaching anyone, silently. refactor and perf stay visible because they change shipped code, and a version number is what you point at when a refactor turns out to have broken something. Hidden also means absent from CHANGELOG.md \u2014 release-please has no 'list it but do not release on it' setting, so this is a real trade, taken deliberately.",
+  "$comment-initial-version": "initial-version 0.1.0 is read only while no release exists; release-please starts a tagless repo at 1.0.0 otherwise (learned on forge-play, whose first run opened 1.0.0 with auto-merge armed). Remove after v0.1.0 is cut."
+}

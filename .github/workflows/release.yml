@@ -1,0 +1,126 @@
+name: Release
+
+# Publishes to PyPI when a version tag is pushed (e.g. `git tag v0.1.0 && git push --tags`).
+#
+# The version is NOT stored in pyproject.toml — hatch-vcs derives it from the
+# tag (see [tool.hatch.version]). The tag is therefore the only place a release
+# number is decided, which is what makes the assertion below meaningful rather
+# than circular: it re-derives from the built artifact and compares.
+#
+# Uses PyPI Trusted Publishing (OIDC) — no API token is stored in the repo,
+# matching willow-mcp, jeles and forge-play. The PyPI publisher for project `willow-gate`
+# is a *pending* publisher (the only kind you can create before a project
+# exists), bound to repository `willow-memory/willow-gate`, workflow `release.yml`,
+# environment `pypi`. All three must match or the upload is rejected with no
+# useful error: the repo must live under the willow-memory org, this file must
+# keep its name, and the `pypi` environment must exist on the repo. The first
+# successful publish turns the pending publisher into a live one.
+#
+# Two triggers, one implementation:
+#   * `push: tags` — every real release, automated or not. release-please cuts
+#     the tag with a PAT (see release-please.yml), and a PAT is not a bot token,
+#     so the push triggers this normally. A human running
+#     `git push origin vX.Y.Z` lands in exactly the same place.
+#   * `workflow_dispatch` — publish an existing tag from the Actions UI. The
+#     recovery path for a tag that exists but never published, which is where
+#     v0.2.0, v0.2.1 and v0.3.0 each ended up while the automated route was
+#     being worked out. Also just a convenient release button.
+#
+# Two triggers this deliberately does NOT have, both tried and both wrong:
+#   * `release: published` — GitHub suppresses workflow runs for any event
+#     generated with GITHUB_TOKEN, releases included, so it never fired for a
+#     bot-cut release. With the PAT the tag push already covers it, and keeping
+#     it would just double-run every release.
+#   * `workflow_call` — release-please called this workflow directly, which did
+#     start it, but PyPI authenticates a called workflow against
+#     `job_workflow_ref` (this file) while the PEP 740 attestation certificate
+#     records `workflow_ref` (the caller). PyPI verifies the attestation against
+#     the publisher that authenticated, so the two claims disagree by
+#     construction — no extra publisher row can reconcile them, and every upload
+#     was rejected. Running as a top-level workflow makes both claims name this
+#     file, which is what a verifiable attestation requires.
+#
+# `skip-existing` on the publish step makes any double-run a no-op rather than
+# a red X, whichever trigger started it.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish (e.g. v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # One name for the tag across both triggers: the dispatch input if there
+      # is one, else the pushed ref. The input must win — on workflow_dispatch
+      # github.ref_name is the *branch*, so without the priority the assertion
+      # below would compare the build against "master" and fail confusingly.
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Check out the tag itself, not the branch head it may sit behind.
+          ref: ${{ inputs.tag || github.ref_name }}
+          # hatch-vcs derives the version from the git tag, so the tags must be
+          # present. The default shallow checkout fetches none of them.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Assert the tag matches the built version
+        # kartikeya shipped a v0.0.8 tag whose build produced 0.0.7, and the only
+        # thing that caught it was PyPI refusing the duplicate upload. Fail here
+        # instead, where the error says what is actually wrong.
+        run: |
+          tag="${TAG#v}"
+          built="$(ls dist/*.tar.gz | sed -E 's|.*/willow_gate-(.+)\.tar\.gz|\1|')"
+          echo "tag=${tag}  built=${built}"
+          if [ "$tag" != "$built" ]; then
+            echo "::error::tag v${tag} builds version ${built} — refusing to publish"
+            exit 1
+          fi
+
+      - name: Check metadata
+        run: |
+          python -m pip install --upgrade twine
+          twine check dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
