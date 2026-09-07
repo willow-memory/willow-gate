@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """custody.py — the custody ledger, Tier 1: the spine.
 
 An append-only, hash-chained event log. It is the trust root that a handled file
@@ -45,13 +44,14 @@ reconciliation (H5) is Tier 2 and is not here. This is the spine only.
 """
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import re
 import unicodedata
-from datetime import datetime
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Iterator, Optional
+from datetime import datetime
+from typing import Any
 
 # The chain's base case — the hash a first event points back to. The recursion
 # stops here; this is the floor, and it is not a real event's hash.
@@ -178,7 +178,7 @@ def _has_string_leaf(v: Any) -> bool:
     return False
 
 
-def scan_for_secrets(obj: Any, path: str = "") -> Optional[str]:
+def scan_for_secrets(obj: Any, path: str = "") -> str | None:
     """Return the dotted path of the first secret the event must not carry, or
     None. Flags (a) any string VALUE of a known credential shape, (b) any KEY of
     a credential shape, and (c) any non-empty string leaf — even wrapped in a
@@ -218,7 +218,7 @@ def _canonical_obj(obj: Any) -> Any:
         JSON), so no serializer-dependent float formatting can leak in.
 
     bool is intentionally preserved (JSON true/false is distinct from 1/0)."""
-    if obj is None or isinstance(obj, bool) or isinstance(obj, int):
+    if obj is None or isinstance(obj, (bool, int)):
         return obj
     if isinstance(obj, float):
         raise ValueError("floats are not canonicalizable; use integers")
@@ -274,7 +274,7 @@ def _validate_ts(ts: Any) -> None:
 class VerifyResult:
     ok: bool
     reason: str = ""
-    at_seq: Optional[int] = None
+    at_seq: int | None = None
 
     def __bool__(self) -> bool:
         return self.ok
@@ -288,13 +288,13 @@ class CustodyLedger:
     and the file agree, and either can be verified.
     """
 
-    def __init__(self, path: Optional[str] = None) -> None:
+    def __init__(self, path: str | None = None) -> None:
         self._events: list[dict] = []
         self._head: str = GENESIS
         self._path = path
 
     # -- the only write ------------------------------------------------------
-    def append(self, event: dict, *, ts: Optional[str] = None) -> dict:
+    def append(self, event: dict, *, ts: str | None = None) -> dict:
         """Validate, redact-scan (fail closed), chain, and append one event.
 
         Raises SecretRefused (writing nothing) if any value looks like a live
@@ -307,7 +307,7 @@ class CustodyLedger:
             )
         return self._append(event, ts=ts)
 
-    def _append(self, event: dict, *, ts: Optional[str] = None) -> dict:
+    def _append(self, event: dict, *, ts: str | None = None) -> dict:
         """The privileged writer. `append` is the caller-facing wrapper that adds
         the system-only-kind guard; the ledger's own derived records go through
         here directly."""
@@ -375,7 +375,7 @@ class CustodyLedger:
         return [dict(e) for e in self._events]
 
     @classmethod
-    def load(cls, path: str) -> "CustodyLedger":
+    def load(cls, path: str) -> CustodyLedger:
         """Rebuild a ledger from its JSONL file and VERIFY it — fail closed. A
         tampered or truncated file raises ChainError rather than loading as
         valid; the file is data, not authority. (Tamper that re-derives the whole
@@ -478,7 +478,7 @@ def _declared_tools(declared: Any) -> list:
 
 
 def session_check_in(ledger: CustodyLedger, session_id: str, actor: str,
-                     declared: Any, *, ts: Optional[str] = None) -> dict:
+                     declared: Any, *, ts: str | None = None) -> dict:
     """Record the declared intent header at the start of a session."""
     _check_session_id(session_id)
     return ledger.append({
@@ -490,7 +490,7 @@ def session_check_in(ledger: CustodyLedger, session_id: str, actor: str,
 
 
 def session_record_action(ledger: CustodyLedger, session_id: str, actor: str,
-                          tool: str, *, ts: Optional[str] = None, **extra) -> dict:
+                          tool: str, *, ts: str | None = None, **extra) -> dict:
     """Record one capability actually exercised — a receipt to reconcile against."""
     _check_session_id(session_id)
     ev = {
@@ -504,7 +504,7 @@ def session_record_action(ledger: CustodyLedger, session_id: str, actor: str,
 
 
 def session_check_out(ledger: CustodyLedger, session_id: str, *,
-                      ts: Optional[str] = None) -> Reconciliation:
+                      ts: str | None = None) -> Reconciliation:
     """Reconcile a session's declared intent against its observed actions, append
     a durable session.checkout, and return the reconciliation. A capability
     exercised but not declared is a mismatch and a fail_count increment."""
@@ -621,7 +621,7 @@ def _lineage_events(ledger: CustodyLedger, lineage_id: str) -> list:
     return out
 
 
-def last_content_hash(ledger: CustodyLedger, lineage_id: str) -> Optional[str]:
+def last_content_hash(ledger: CustodyLedger, lineage_id: str) -> str | None:
     """The content hash in effect for a lineage — from the last file event, or
     the observed hash of a recorded capture_gap (a documented break becomes the
     new baseline, so a gap is flagged once, not forever)."""
@@ -644,8 +644,8 @@ def last_content_hash(ledger: CustodyLedger, lineage_id: str) -> Optional[str]:
 
 
 def file_create(ledger: CustodyLedger, lineage_id: str, actor: str,
-                content_hash: str, *, path: Optional[str] = None,
-                session_id: Optional[str] = None, ts: Optional[str] = None) -> dict:
+                content_hash: str, *, path: str | None = None,
+                session_id: str | None = None, ts: str | None = None) -> dict:
     _check_session_id(session_id, allow_none=True)
     return ledger.append({
         "kind": KIND_FILE_CREATE, "lineage_id": lineage_id, "actor": actor,
@@ -654,8 +654,8 @@ def file_create(ledger: CustodyLedger, lineage_id: str, actor: str,
 
 
 def file_read(ledger: CustodyLedger, lineage_id: str, actor: str,
-              content_hash: str, *, session_id: Optional[str] = None,
-              ts: Optional[str] = None) -> dict:
+              content_hash: str, *, session_id: str | None = None,
+              ts: str | None = None) -> dict:
     _check_session_id(session_id, allow_none=True)
     return ledger.append({
         "kind": KIND_FILE_READ, "lineage_id": lineage_id, "actor": actor,
@@ -664,9 +664,9 @@ def file_read(ledger: CustodyLedger, lineage_id: str, actor: str,
 
 
 def file_write(ledger: CustodyLedger, lineage_id: str, actor: str,
-               new_content_hash: str, *, parent_content_hash: Optional[str] = None,
-               diff_stat: Optional[dict] = None, session_id: Optional[str] = None,
-               ts: Optional[str] = None) -> dict:
+               new_content_hash: str, *, parent_content_hash: str | None = None,
+               diff_stat: dict | None = None, session_id: str | None = None,
+               ts: str | None = None) -> dict:
     """Record a new version. If parent is not given it auto-chains to the last
     recorded content hash for the lineage. Pass session_id to tie the write to a
     session so H5 check-out reconciles it."""
@@ -682,9 +682,9 @@ def file_write(ledger: CustodyLedger, lineage_id: str, actor: str,
 
 
 def file_gate_cross(ledger: CustodyLedger, lineage_id: str, actor: str,
-                    gate: dict, *, content_hash: Optional[str] = None,
-                    session_id: Optional[str] = None,
-                    ts: Optional[str] = None) -> dict:
+                    gate: dict, *, content_hash: str | None = None,
+                    session_id: str | None = None,
+                    ts: str | None = None) -> dict:
     """Record a file crossing an external gate (the received-file crossing). The
     ledger's fail-closed redaction refuses a live secret carried in `gate`. Pass
     session_id so H5 reconciles the egress."""
@@ -696,8 +696,8 @@ def file_gate_cross(ledger: CustodyLedger, lineage_id: str, actor: str,
 
 
 def file_checkout(ledger: CustodyLedger, lineage_id: str, actor: str,
-                  *, session_id: Optional[str] = None,
-                  ts: Optional[str] = None) -> dict:
+                  *, session_id: str | None = None,
+                  ts: str | None = None) -> dict:
     _check_session_id(session_id, allow_none=True)
     return ledger.append({
         "kind": KIND_FILE_CHECKOUT, "lineage_id": lineage_id, "actor": actor,
@@ -722,7 +722,7 @@ def verify_lineage(ledger: CustodyLedger, lineage_id: str) -> VerifyResult:
     # A write-first lineage is un-provenanced and must not pass.
     if evs[0].get("kind") not in (KIND_FILE_CREATE, KIND_FILE_GATE_CROSS):
         return VerifyResult(False, "lineage has no origin", evs[0].get("seq"))
-    effective: Optional[str] = None
+    effective: str | None = None
     known: set = set()   # every content hash this lineage has legitimately held
     for i, e in enumerate(evs):
         k = e.get("kind")
@@ -764,7 +764,7 @@ def lineage_has_gaps(ledger: CustodyLedger, lineage_id: str) -> bool:
 
 def detect_capture_gap(ledger: CustodyLedger, lineage_id: str,
                        observed_content_hash: str, *, actor: str = "observer",
-                       ts: Optional[str] = None) -> Optional[dict]:
+                       ts: str | None = None) -> dict | None:
     """Compare an observed file hash to the last recorded one. If they differ, no
     recorded write explains the change (a write to `observed` would have moved the
     recorded hash), so it is an out-of-band edit: append and return a capture_gap.
@@ -793,7 +793,7 @@ def detect_capture_gap(ledger: CustodyLedger, lineage_id: str,
 # is the production one.
 
 
-def _recompute_head(events: list, upto_seq: int) -> Optional[str]:
+def _recompute_head(events: list, upto_seq: int) -> str | None:
     """The chain head over events[0..upto_seq], or None if the chain is broken."""
     prev = GENESIS
     for e in events:
@@ -819,7 +819,7 @@ def _sig_str(sig: Any) -> str:
     return str(sig)
 
 
-def checkpoint(ledger: CustodyLedger, signer: Any, *, ts: Optional[str] = None) -> dict:
+def checkpoint(ledger: CustodyLedger, signer: Any, *, ts: str | None = None) -> dict:
     """Seal the current chain head with a signature and append a checkpoint record.
     The head commits (via the chain) to every event before it, so one signature
     makes the whole prefix tamper-evident at bounded cost. System-only kind."""
@@ -852,7 +852,7 @@ def verify_checkpoint(ledger: CustodyLedger, checkpoint_event: dict, signer: Any
         return VerifyResult(False, "sealed head does not match recomputed head", covers)
     try:
         ok = bool(signer.verify(claimed.encode("utf-8"), sig))
-    except Exception:
+    except (AttributeError, TypeError, ValueError, OSError):
         ok = False
     if not ok:
         return VerifyResult(False, "checkpoint signature invalid", covers)
@@ -860,8 +860,8 @@ def verify_checkpoint(ledger: CustodyLedger, checkpoint_event: dict, signer: Any
 
 
 def export_sidecar(ledger: CustodyLedger, signer: Any, *,
-                   lineage_id: Optional[str] = None,
-                   session_id: Optional[str] = None) -> dict:
+                   lineage_id: str | None = None,
+                   session_id: str | None = None) -> dict:
     """A portable, signed slice for offline use. It proves the shown events are
     AUTHENTIC (signed) — NOT that none were omitted. Explicitly weaker than the
     ledger; the returned dict carries `authenticity_only: True` to say so."""
@@ -893,7 +893,7 @@ def verify_sidecar(sidecar: dict, signer: Any) -> VerifyResult:
     # stripped label breaks verification.
     try:
         ok = bool(signer.verify(canonicalize(sidecar), sig))
-    except Exception:
+    except (AttributeError, TypeError, ValueError, OSError):
         ok = False
     if not ok:
         return VerifyResult(False, "sidecar signature invalid")
@@ -904,8 +904,8 @@ class GpgSigner:
     """Production signer over python-gnupg detached signatures. Imports gnupg lazily
     so the rest of the module stays stdlib-only."""
 
-    def __init__(self, fingerprint: str, *, gnupghome: Optional[str] = None,
-                 passphrase: Optional[str] = None) -> None:
+    def __init__(self, fingerprint: str, *, gnupghome: str | None = None,
+                 passphrase: str | None = None) -> None:
         import gnupg  # optional dependency, required only for this signer
         self._g = gnupg.GPG(gnupghome=gnupghome) if gnupghome else gnupg.GPG()
         self._fpr = fingerprint

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """friction_floor.py — a smoke detector for the mirror, not a wall.
 
 The gap WillowGate and the inversion-check don't cover: neither watches the
@@ -33,7 +32,6 @@ from __future__ import annotations
 import re
 import statistics
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 _WORD = re.compile(r"[a-z0-9']+")
 _STOP = {
@@ -114,17 +112,17 @@ _NEG = {
     "cannot", "can't", "won't", "doubt", "reject", "deny", "disagree", "oppose",
     "against", "false", "without", "refute", "dispute", "disbelieve",
 }
-_AGREE_RE = re.compile(r"\bi\s+(?:strongly\s+|somewhat\s+)?agree\b", re.I)
-_DISAGREE_RE = re.compile(r"\bi\s+(?:strongly\s+|somewhat\s+)?disagree\b", re.I)
+_AGREE_RE = re.compile(r"\bi\s+(?:strongly\s+|somewhat\s+)?agree\b", re.IGNORECASE)
+_DISAGREE_RE = re.compile(r"\bi\s+(?:strongly\s+|somewhat\s+)?disagree\b", re.IGNORECASE)
 _BELIEF_RE = re.compile(r"\bi\s+(?:do not|don't|doubt|reject|believe|think|feel|"
-                        r"support|favor|hold|maintain|am convinced)\b", re.I)
+                        r"support|favor|hold|maintain|am convinced)\b", re.IGNORECASE)
 # question cues that separate the persona preamble from the claim/choices
 _CUE_RE = re.compile(
     r"(do you agree or disagree|what is your view|would you rather|"
     r"which.*do you|do you agree|following claim|following topic|following statement)",
-    re.I)
-_CHOICE_POS = re.compile(r"\b(agree|yes|true|support|for it|in favor)\b", re.I)
-_CHOICE_NEG = re.compile(r"\b(disagree|no|false|oppose|against|not)\b", re.I)
+    re.IGNORECASE)
+_CHOICE_POS = re.compile(r"\b(agree|yes|true|support|for it|in favor)\b", re.IGNORECASE)
+_CHOICE_NEG = re.compile(r"\b(disagree|no|false|oppose|against|not)\b", re.IGNORECASE)
 _SENT_SPLIT = re.compile(r"[.!?]+\s+")
 
 
@@ -214,7 +212,7 @@ def stance_friction(agent_text: str, user_context: str) -> float:
     return 1.0 if pp * cp < 0 else 0.0
 
 
-def escalation_score(user_texts: List[str], ts: Optional[List[float]] = None) -> float:
+def escalation_score(user_texts: list[str], ts: list[float] | None = None) -> float:
     """[0,1]. Is the user ramping — grandiosity, certainty, intensity, and
     (if timestamps given) accelerating cadence."""
     if not user_texts:
@@ -241,7 +239,7 @@ def escalation_score(user_texts: List[str], ts: Optional[List[float]] = None) ->
 class Turn:
     role: str            # "user" | "agent"
     text: str
-    ts: Optional[float] = None
+    ts: float | None = None
 
 
 @dataclass
@@ -250,7 +248,7 @@ class Flag:
     streak: int                      # low-friction agent turns in the window
     mean_friction: float
     escalation: float
-    low_turns: List[int] = field(default_factory=list)
+    low_turns: list[int] = field(default_factory=list)
     message: str = ""
 
 
@@ -266,9 +264,9 @@ class FrictionFloor:
         self.escalation_trigger = escalation_trigger
         self.user_lookback = user_lookback
 
-    def scan(self, turns: List[Turn]) -> List[Flag]:
-        flags: List[Flag] = []
-        frictions: List[tuple] = []   # (transcript_index, score)
+    def scan(self, turns: list[Turn]) -> list[Flag]:
+        flags: list[Flag] = []
+        frictions: list[tuple] = []   # (transcript_index, score)
         alarmed = False
 
         for i, t in enumerate(turns):

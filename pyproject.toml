@@ -42,3 +42,7 @@ line-length = 120
 # The test suite deliberately uses compact one-line setup statements
 # (`ev = dict(e); ev["seq"] = i`) and short loop names; don't fight it.
 "tests/*" = ["E702", "E741"]
+# ValueError is the public contract for malformed custody/trust inputs; tests
+# assert on it explicitly. TRY004 wants TypeError — not worth an API break.
+"src/willow_gate/custody.py" = ["TRY004"]
+"src/willow_gate/trust_scale.py" = ["TRY004"]
