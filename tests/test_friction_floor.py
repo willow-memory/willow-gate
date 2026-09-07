@@ -1,6 +1,9 @@
 """friction_floor tests — deterministic, no model, no network."""
 from willow_gate.friction_floor import (
-    FrictionFloor, Turn, escalation_score, friction_score,
+    FrictionFloor,
+    Turn,
+    escalation_score,
+    friction_score,
 )
 
 

@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-from willow_gate import GateError, WillowGate, _SIGNED_FIELDS
+from willow_gate import _SIGNED_FIELDS, GateError, WillowGate
 
 SEC = b"elder-secret-0123456789abcdef012"
 
@@ -25,10 +25,21 @@ def sign(secret, h):
 
 
 def hdr(secret, **over):
-    h = dict(agent_id="E1", agent_name="elder", last_gate="G0", pass_count=0,
-             fail_count=0, drift=50, nonce="e" * 32, trust_level=4,
-             timestamp=int(time.time() * 1000), tools=["read"],
-             state_hash="a" * 64, signature="0" * 64, reserved=0)
+    h = {
+        "agent_id": "E1",
+        "agent_name": "elder",
+        "last_gate": "G0",
+        "pass_count": 0,
+        "fail_count": 0,
+        "drift": 50,
+        "nonce": "e" * 32,
+        "trust_level": 4,
+        "timestamp": int(time.time() * 1000),
+        "tools": ["read"],
+        "state_hash": "a" * 64,
+        "signature": "0" * 64,
+        "reserved": 0,
+    }
     h.update(over)
     h["signature"] = sign(secret, h)
     return h

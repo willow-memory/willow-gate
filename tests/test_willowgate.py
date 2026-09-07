@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from willow_gate import GateError, Tool, WillowGate, _SIGNED_FIELDS
+from willow_gate import _SIGNED_FIELDS, GateError, Tool, WillowGate
 
 SEC = b"rookie-secret-0123456789abcdef01"
 
@@ -20,10 +20,21 @@ def sign(secret, h):
 
 
 def hdr(secret, **over):
-    h = dict(agent_id="R1", agent_name="rookie", last_gate="G0", pass_count=0,
-             fail_count=0, drift=50, nonce="a" * 32, trust_level=1,
-             timestamp=int(time.time() * 1000), tools=["read"],
-             state_hash="a" * 64, signature="0" * 64, reserved=0)
+    h = {
+        "agent_id": "R1",
+        "agent_name": "rookie",
+        "last_gate": "G0",
+        "pass_count": 0,
+        "fail_count": 0,
+        "drift": 50,
+        "nonce": "a" * 32,
+        "trust_level": 1,
+        "timestamp": int(time.time() * 1000),
+        "tools": ["read"],
+        "state_hash": "a" * 64,
+        "signature": "0" * 64,
+        "reserved": 0,
+    }
     h.update(over)
     h["signature"] = sign(secret, h)
     return h
@@ -216,9 +227,15 @@ def steady_session(gate, nonce="2" * 32):
 
 
 def steady_exit(s, **over):
-    base = dict(agent_id="S2", agent_name="steady", nonce=s["nonce"],
-                trust_level=2, tools=["read", "write"], pass_count=5,
-                timestamp=s["entry_ms"] + 1000)
+    base = {
+        "agent_id": "S2",
+        "agent_name": "steady",
+        "nonce": s["nonce"],
+        "trust_level": 2,
+        "tools": ["read", "write"],
+        "pass_count": 5,
+        "timestamp": s["entry_ms"] + 1000,
+    }
     base.update(over)
     return hdr(SSEC, **base)
 

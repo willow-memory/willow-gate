@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """WillowGate — hardened build (from DRAFT_SPEC v0314).
 
 Your design, kept intact: symmetric 13-field check-in / check-out, five trust
@@ -45,17 +44,16 @@ import hashlib
 import hmac
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set, Tuple
 
 try:
     import gnupg  # python-gnupg
-except Exception:  # pragma: no cover - optional at import time, required at run
+except ImportError:  # pragma: no cover - optional at import time, required at run
     gnupg = None
 
-from willow_gate.trust_scale import Trust, at_least, from_int, outranks, to_int  # noqa: E402,F401
-
+from willow_gate.trust_scale import Trust, at_least, from_int, outranks, to_int  # noqa: F401
 
 # ─── Trust levels ────────────────────────────────────────────────────────────
 
@@ -68,15 +66,15 @@ class TrustLevel:
     read_only: bool
     write_export_allowed: bool
     announcement_volume: str     # HARDENED(5): was blast_radius; = audit loudness
-    max_drift_ms: Optional[int]
-    max_fail_count: Optional[int]
-    min_pass_count: Optional[int]
-    allowed_tools: Tuple[str, ...]
+    max_drift_ms: int | None
+    max_fail_count: int | None
+    min_pass_count: int | None
+    allowed_tools: tuple[str, ...]
     audit_level: str             # "full" | "minimal"
 
 
 # HARDENED(7): drift/fail tighten as trust rises — power gets less slack, not more.
-TRUST_LEVELS: Dict[int, TrustLevel] = {
+TRUST_LEVELS: dict[int, TrustLevel] = {
     0: TrustLevel("Exiled",  False, True,  False, "maximum", None,  None, None, (),                                             "full"),
     1: TrustLevel("Rookie",  True,  True,  False, "large",   5000,  5,    0,   ("read",),                                       "full"),
     2: TrustLevel("Steady",  True,  False, True,  "medium",  3000,  3,    3,   ("read", "write"),                               "full"),
@@ -88,7 +86,7 @@ READ_TOOL = "read"
 # How many times an event is written to the announcement channel, by volume.
 _VOLUME_REPEAT = {"maximum": 5, "large": 3, "medium": 2, "small": 1, "minimal": 1}
 
-REQUIRED_FIELDS: Set[str] = {
+REQUIRED_FIELDS: set[str] = {
     "agent_id", "agent_name", "last_gate", "pass_count", "fail_count", "drift",
     "nonce", "trust_level", "timestamp", "tools", "state_hash", "signature",
     "reserved",
@@ -97,7 +95,7 @@ REQUIRED_FIELDS: Set[str] = {
 _SIGNED_FIELDS = sorted(REQUIRED_FIELDS - {"signature"})
 
 
-def canonical_header_bytes(header: Dict) -> bytes:
+def canonical_header_bytes(header: dict) -> bytes:
     """The fleet's canonical signing encoding (box audit A6): a JSON object of
     the signed fields, key-sorted, tight separators — a *structured* encoding, so
     a delimiter inside a value cannot shift field boundaries and forge a
@@ -121,8 +119,8 @@ class WillowGate:
 
     def __init__(
         self,
-        operator_key_fpr: Optional[str] = None,
-        base_dir: Optional[Path] = None,
+        operator_key_fpr: str | None = None,
+        base_dir: Path | None = None,
         require_pgp: bool = True,
     ):
         # HARDENED(3): the recipient of ledger encryption is the OPERATOR's key,
@@ -138,17 +136,17 @@ class WillowGate:
             self._verify_pgp()
 
         # agent_id -> {"secret": bytes, "max_trust": int}. Registered out-of-band.
-        self._registry: Dict[str, Dict] = {}
+        self._registry: dict[str, dict] = {}
         self._registry_file = self.base_dir / "registry.json"
         self._load_registry()
 
         # HARDENED(4): used nonces persist, so a restart cannot forget them.
         self._used_file = self.base_dir / "used_nonces"
-        self._used: Set[str] = set()
+        self._used: set[str] = set()
         if self._used_file.exists():
             self._used = set(self._used_file.read_text().split())
 
-        self.sessions: Dict[str, Dict] = {}
+        self.sessions: dict[str, dict] = {}
         self.announcements_log = self.base_dir / "announcements.log"
 
         # Earned-rung tally (B12): the trust-ladder thresholds (min_pass_count,
@@ -161,7 +159,7 @@ class WillowGate:
         # not the header. Off by default: existing deployments keep header
         # semantics until the operator seeds trust_tally.json and flips it on.
         self._tally_file = self.base_dir / "trust_tally.json"
-        self._tally: Dict[str, Dict[str, int]] = {}
+        self._tally: dict[str, dict[str, int]] = {}
         if self._tally_file.exists():
             self._tally = json.loads(self._tally_file.read_text())
 
@@ -210,7 +208,7 @@ class WillowGate:
         return os.environ.get("WILLOW_GATE_ENFORCE_EARNED_RUNGS", "").strip().lower() in (
             "1", "true", "yes", "on")
 
-    def _agent_tally(self, agent_id: str) -> Dict[str, int]:
+    def _agent_tally(self, agent_id: str) -> dict[str, int]:
         t = self._tally.get(agent_id) or {}
         return {"pass": int(t.get("pass", 0)), "fail": int(t.get("fail", 0))}
 
@@ -220,10 +218,10 @@ class WillowGate:
         t["fail"] = int(t.get("fail", 0)) + max(0, int(fail_delta))
         self._tally_file.write_text(json.dumps(self._tally))
 
-    def _canonical(self, header: Dict) -> bytes:
+    def _canonical(self, header: dict) -> bytes:
         return canonical_header_bytes(header)
 
-    def _expected_sig(self, agent_id: str, header: Dict) -> Optional[str]:
+    def _expected_sig(self, agent_id: str, header: dict) -> str | None:
         rec = self._registry.get(agent_id)
         if not rec:
             return None
@@ -232,7 +230,7 @@ class WillowGate:
 
     # ── validation ──────────────────────────────────────────────────────────
 
-    def _validate_shape(self, data: Dict) -> None:
+    def _validate_shape(self, data: dict) -> None:
         missing = REQUIRED_FIELDS - set(data)
         if missing:
             raise GateError(f"missing fields: {sorted(missing)}")
@@ -249,7 +247,7 @@ class WillowGate:
         if len(str(data["signature"])) != 64:
             raise GateError("signature must be 64 hex chars (HMAC-SHA256)")
 
-    def _authenticate(self, header: Dict) -> int:
+    def _authenticate(self, header: dict) -> int:
         """Verify the HMAC and return the EFFECTIVE trust level (claim capped by
         the registered ceiling). HARDENED(2): trust is bound, not asserted.
 
@@ -278,7 +276,7 @@ class WillowGate:
 
     # ── check-in ────────────────────────────────────────────────────────────
 
-    def check_in(self, header: Dict) -> Tuple[bool, str, Optional[Dict]]:
+    def check_in(self, header: dict) -> tuple[bool, str, dict | None]:
         self._validate_shape(header)
         trust = self._authenticate(header)
         level = TRUST_LEVELS[trust]
@@ -350,8 +348,8 @@ class WillowGate:
 
     # ── inline enforcement (the actual lock) ─────────────────────────────────
 
-    def authorize_tool(self, session: Dict, tool: str, *, export: bool = False
-                       ) -> Tuple[bool, str]:
+    def authorize_tool(self, session: dict, tool: str, *, export: bool = False
+                       ) -> tuple[bool, str]:
         """HARDENED(1): call this BEFORE every tool use. It PREVENTS — a denied
         call never runs. This is the difference between a gate and a ledger."""
         # The caller-passed dict identifies the session by nonce ONLY; every
@@ -380,7 +378,7 @@ class WillowGate:
 
     # ── the harness (the wiring that makes PREVENT structural) ────────────────
 
-    def bind_tools(self, session: Dict, tools: List["Tool"]) -> "GatedSession":
+    def bind_tools(self, session: dict, tools: list[Tool]) -> GatedSession:
         """Wrap a live session so its tools are ONLY reachable through the gate.
 
         README's distinction: the gate PREVENTS only when a harness routes every
@@ -399,7 +397,7 @@ class WillowGate:
 
     # ── check-out ─────────────────────────────────────────────────────────────
 
-    def check_out(self, session: Dict, exit_data: Dict) -> Tuple[bool, str]:
+    def check_out(self, session: dict, exit_data: dict) -> tuple[bool, str]:
         self._validate_shape(exit_data)
         # Authoritative server-side session — a forged/mutated caller dict, or a
         # second check-out after the session was already removed, is refused here
@@ -457,7 +455,7 @@ class WillowGate:
 
     # ── ledger / announcements ───────────────────────────────────────────────
 
-    def _write_ledger(self, nonce: str, kind: str, payload: Dict) -> None:
+    def _write_ledger(self, nonce: str, kind: str, payload: dict) -> None:
         raw = json.dumps(payload, sort_keys=True).encode()
         path = self.ledger_dir / f"{nonce}.{kind}.gpg"
         if self.require_pgp:
@@ -469,7 +467,7 @@ class WillowGate:
         else:  # explicit opt-out only; still leaves a record
             path.with_suffix(".json").write_bytes(raw)
 
-    def _announce(self, session: Dict, msg: str) -> None:
+    def _announce(self, session: dict, msg: str) -> None:
         # HARDENED(5): louder for the less trusted — repeated writes to the log.
         vol = TRUST_LEVELS[session["trust_level"]].announcement_volume
         line = f"[{vol.upper()}] {session['agent_id']} :: {msg}\n"
@@ -499,13 +497,13 @@ class GatedSession:
     gate from a ledger into a prevention: the tool callables are held privately,
     so there is no un-gated path to them."""
 
-    def __init__(self, gate: WillowGate, session: Dict, tools: List[Tool]):
+    def __init__(self, gate: WillowGate, session: dict, tools: list[Tool]):
         self._gate = gate
         self._session = session
-        self.__tools: Dict[str, Tool] = {t.name: t for t in tools}  # name-mangled
+        self.__tools: dict[str, Tool] = {t.name: t for t in tools}  # name-mangled
 
     @property
-    def tools(self) -> Tuple[str, ...]:
+    def tools(self) -> tuple[str, ...]:
         """The names bound to this session — never the callables themselves."""
         return tuple(self.__tools)
 

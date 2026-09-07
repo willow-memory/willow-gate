@@ -7,9 +7,14 @@ import json
 import pytest
 
 from willow_gate.custody import (
-    CustodyLedger, SecretRefused, GENESIS,
-    canonicalize, event_hash, looks_like_secret,
-    KIND_SESSION_ACTION, KIND_FILE_GATE_CROSS,
+    GENESIS,
+    KIND_FILE_GATE_CROSS,
+    KIND_SESSION_ACTION,
+    CustodyLedger,
+    SecretRefused,
+    canonicalize,
+    event_hash,
+    looks_like_secret,
 )
 
 
@@ -120,10 +125,14 @@ def test_persist_and_reload_verifies(tmp_path):
 # ============================================================================
 # Tier 2 — the session layer (H5 check-out reconciliation)
 # ============================================================================
-from willow_gate.custody import (  # noqa: E402
-    ChainError as _ChainError,
-    session_check_in, session_record_action, session_check_out,
+from willow_gate.custody import (
     KIND_SESSION_CHECKOUT,
+    session_check_in,
+    session_check_out,
+    session_record_action,
+)
+from willow_gate.custody import (
+    ChainError as _ChainError,
 )
 
 
@@ -199,10 +208,20 @@ def test_declared_accepts_header_list_or_string():
 # ============================================================================
 # Tier 3 — file custody (lineage, diffs, capture-gap detection)
 # ============================================================================
-import hashlib  # noqa: E402
-from willow_gate.custody import (  # noqa: E402
-    file_create, file_write, file_gate_cross, file_lineage, verify_lineage, detect_capture_gap, lineage_has_gaps,
-    last_content_hash, KIND_CAPTURE_GAP, KIND_FILE_WRITE, KIND_FILE_CREATE,
+import hashlib
+
+from willow_gate.custody import (
+    KIND_CAPTURE_GAP,
+    KIND_FILE_CREATE,
+    KIND_FILE_WRITE,
+    detect_capture_gap,
+    file_create,
+    file_gate_cross,
+    file_lineage,
+    file_write,
+    last_content_hash,
+    lineage_has_gaps,
+    verify_lineage,
 )
 
 
@@ -294,8 +313,14 @@ def test_file_gate_cross_redacts_live_secret():
 # ============================================================================
 # Hardening regression tests — one per confirmed audit finding
 # ============================================================================
-from willow_gate.custody import (  # noqa: E402
-    KIND_SESSION_ACTION as _SA, event_hash as _eh, canonicalize as _canon,
+from willow_gate.custody import (
+    KIND_SESSION_ACTION as _SA,
+)
+from willow_gate.custody import (
+    canonicalize as _canon,
+)
+from willow_gate.custody import (
+    event_hash as _eh,
 )
 
 
@@ -463,7 +488,7 @@ def test_tail_truncation_passes_tier1_verify_documented_limit():
 # ============================================================================
 # Round-2 hardening — the re-audit findings (bypasses + new bugs)
 # ============================================================================
-from willow_gate.custody import file_checkout as _file_checkout  # noqa: E402
+from willow_gate.custody import file_checkout as _file_checkout
 
 
 def _write_valid_chain(path, events):
@@ -674,8 +699,11 @@ def test_load_raises_chainerror_on_float_and_bad_sig(tmp_path):
 # ============================================================================
 # Round-4 — pass-4 findings (Tier-2 fixes + documented Tier-4-boundary limits)
 # ============================================================================
-from willow_gate.custody import (  # noqa: E402
-    verify_lineage as _verify_lineage, KIND_FILE_CREATE as _FC,
+from willow_gate.custody import (
+    KIND_FILE_CREATE as _FC,
+)
+from willow_gate.custody import (
+    verify_lineage as _verify_lineage,
 )
 
 
@@ -764,8 +792,11 @@ def test_forged_capture_gap_launders_lineage_documented_limit(tmp_path):
 # ============================================================================
 # Round-5 — pass-5 findings (dead zone, read-launder, session_id type)
 # ============================================================================
-from willow_gate.custody import (  # noqa: E402
-    file_read as _file_read, last_content_hash as _last_ch,
+from willow_gate.custody import (
+    file_read as _file_read,
+)
+from willow_gate.custody import (
+    last_content_hash as _last_ch,
 )
 
 
@@ -830,7 +861,8 @@ def test_secret_field_trailing_space_key_still_caught():
 # ============================================================================
 # Round-6 — pass-6 findings (F1 session merge, F2 trailing feed, F3/F4/F5 lineage)
 # ============================================================================
-from willow_gate.custody import KIND_FILE_WRITE as _FW, KIND_FILE_CREATE as _FC2  # noqa: E402
+from willow_gate.custody import KIND_FILE_CREATE as _FC2
+from willow_gate.custody import KIND_FILE_WRITE as _FW
 
 
 # R6-1 (F1): two DISTINCT sessions can no longer merge (the round-5 regression).
@@ -896,10 +928,15 @@ def test_read_of_historical_version_ok():
 # ============================================================================
 # Tier 4 — sealing (signed checkpoints + portable sidecar)
 # ============================================================================
-import hmac as _hmac  # noqa: E402
-from willow_gate.custody import (  # noqa: E402
-    checkpoint, verify_checkpoint, export_sidecar, verify_sidecar, GpgSigner,
+import hmac as _hmac
+
+from willow_gate.custody import (
     KIND_CHECKPOINT,
+    GpgSigner,
+    checkpoint,
+    export_sidecar,
+    verify_checkpoint,
+    verify_sidecar,
 )
 
 
@@ -914,7 +951,7 @@ class _HmacSigner:
     def verify(self, data, sig):
         try:
             return _hmac.compare_digest(sig, self.sign(data))
-        except Exception:
+        except (TypeError, ValueError):
             return False
 
 

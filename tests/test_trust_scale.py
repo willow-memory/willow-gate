@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-from willow_gate import GateError, WillowGate, _SIGNED_FIELDS
+from willow_gate import _SIGNED_FIELDS, GateError, WillowGate
 from willow_gate.trust_scale import Trust, at_least, from_int, outranks, to_int
 
 ALL = (Trust.EXILED, Trust.ROOKIE, Trust.STEADY, Trust.VETERAN, Trust.ELDER)
@@ -44,7 +44,7 @@ def test_a_trust_level_is_not_an_integer_and_will_not_arithmetic():
         for other in (0, 2, 4):
             assert a != other
             try:
-                a + other  # noqa: B018
+                a + other
             except TypeError:
                 continue
             raise AssertionError(f"{a} + {other} produced a value")
@@ -123,10 +123,21 @@ def sign(secret, h):
 
 
 def hdr(secret, **over):
-    h = dict(agent_id="C1", agent_name="capped", last_gate="G0", pass_count=0,
-              fail_count=0, drift=50, nonce="c" * 32, trust_level=1,
-              timestamp=int(time.time() * 1000), tools=["read"],
-              state_hash="a" * 64, signature="0" * 64, reserved=0)
+    h = {
+        "agent_id": "C1",
+        "agent_name": "capped",
+        "last_gate": "G0",
+        "pass_count": 0,
+        "fail_count": 0,
+        "drift": 50,
+        "nonce": "c" * 32,
+        "trust_level": 1,
+        "timestamp": int(time.time() * 1000),
+        "tools": ["read"],
+        "state_hash": "a" * 64,
+        "signature": "0" * 64,
+        "reserved": 0,
+    }
     h.update(over)
     h["signature"] = sign(secret, h)
     return h
