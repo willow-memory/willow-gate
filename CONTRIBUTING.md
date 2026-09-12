@@ -1,0 +1,62 @@
+# Contributing to willow-gate
+
+## Run the gate before you push
+
+The test command — quote it, and its last line, in the PR:
+
+```sh
+python -m pytest tests/ -q
+```
+
+CI (`.github/workflows/tests.yml`) lints first and then runs that same suite
+under coverage, on the floor and ceiling Pythons for a pull request (3.10 and
+3.13) and on every point release for a push. The coverage floor is 90% of
+`src/willow_gate/` — a floor, not a target; ratchet it up, never down.
+
+```sh
+pip install -e '.[dev]' coverage ruff==0.16.4 bandit
+ruff check src tests
+bandit -r src -ll -q
+coverage run --include='src/willow_gate/*' -m pytest tests/ -q && coverage report --fail-under=90
+```
+
+Pin ruff to CI's version. A newer ruff finds things CI does not, and an older
+one misses things CI finds; both read as "passes locally, fails on the PR".
+
+## Receipts, not claims
+
+A PR says what it ran and what came back — the command above and its result
+line — rather than "tests pass". A claim without a command behind it is not
+evidence, and the reviewer cannot re-run a claim.
+
+## Commit types decide releases
+
+release-please cuts releases from conventional-commit types, and
+`release-please.yml` arms auto-merge on the release PR, so nothing human
+stands between a commit type and PyPI. The rule lives beside the setting, in
+`release-please-config.json` (`$comment-hidden-rule`): `docs:`, `test:`,
+`ci:` and `chore:` change nothing `pip install willow-gate` delivers and are
+hidden; every other listed type cuts a release on its own, not just `feat`
+and `fix`.
+
+The PR *title* counts too. This repo merges with merge commits, GitHub writes
+the title into the merge commit body, and release-please reads that body —
+so `.github/workflows/pr-title.yml` fails a title that would cut a release
+its commits would not, and a commit that claims a release for a change
+nothing installs.
+
+## Scans are planted
+
+A test that reads the tree — a workflow carries a guard, a config hides the
+right types, a constant agrees with pyproject — is only evidence once it has
+been shown to fail on a tree without the property. `tests/test_scans_fire.py`
+enforces that: every scan helper in `tests/` needs a test in the same file,
+named with `plant`, `fires` or `catches`, that calls it.
+
+## Fleet conventions
+
+`tests/fleet_conventions.json` is the fleet's published rule set
+(`reconciler conventions --json`, willow-reconciler 0.6.0), pinned by hash,
+and `tests/test_fleet_conventions.py` holds this tree to it. Re-sync the
+file from the reconciler rather than editing it by hand. A published rule
+this repo cannot meet is recorded in the PR, not bent in the test.
