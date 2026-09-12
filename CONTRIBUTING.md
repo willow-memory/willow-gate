@@ -53,10 +53,27 @@ been shown to fail on a tree without the property. `tests/test_scans_fire.py`
 enforces that: every scan helper in `tests/` needs a test in the same file,
 named with `plant`, `fires` or `catches`, that calls it.
 
+## The Idea-Id commit-trailer convention
+
+A commit that lands an idea recorded in `docs/ideas.md` carries an
+`Idea-Id: willow-ideas-<num>` git trailer (add `Idea-Status: partial` when a
+commit only partly lands it). It is the durable join key willow-reconciler
+reads; a wrong id is worse than no id, so never type one by hand:
+
+    reconciler id --repo ./ --doc docs/ideas.md --grep "words from the item"
+    reconciler install-hook --repo ./          # derives it from a branch named idea-NN
+
+`.github/workflows/trailers.yml` runs `reconciler verify` on every PR and fails
+on a trailer that names an item the doc does not contain. (`--repo ./`, not
+`.`: the reconciler reads an argument with no path separator as a bare repo
+name, and `.` has none.)
+
 ## Fleet conventions
 
 `tests/fleet_conventions.json` is the fleet's published rule set
 (`reconciler conventions --json`, willow-reconciler 0.6.0), pinned by hash,
-and `tests/test_fleet_conventions.py` holds this tree to it. Re-sync the
+and `tests/test_fleet_conventions.py` holds this tree to it, the pile rule
+included: this repo keeps a numbered pile at `docs/ideas.md`, so the trailer
+gate above is required. Re-sync the
 file from the reconciler rather than editing it by hand. A published rule
 this repo cannot meet is recorded in the PR, not bent in the test.
