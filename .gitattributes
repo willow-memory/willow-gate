@@ -1,0 +1,6 @@
+# LF in the working tree on every platform. The Windows leg of the CI floor
+# checks out with Git for Windows, whose default core.autocrlf=true would
+# rewrite every text file to CRLF; tests/fleet_conventions.json is pinned by
+# the SHA-256 of its bytes and docs/ideas.md is parsed line by line, so a
+# checkout that changed line endings would fail both for no real reason.
+* text=auto eol=lf

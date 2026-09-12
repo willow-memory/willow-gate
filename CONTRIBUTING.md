@@ -8,20 +8,28 @@ The test command — quote it, and its last line, in the PR:
 python -m pytest tests/ -q
 ```
 
-CI (`.github/workflows/tests.yml`) lints first and then runs that same suite
-under coverage, on the floor and ceiling Pythons for a pull request (3.10 and
-3.13) and on every point release for a push. The coverage floor is 90% of
-`src/willow_gate/` — a floor, not a target; ratchet it up, never down.
+CI (`.github/workflows/tests.yml`) is the fleet CI floor: a lint job, a
+Linux leg for every Python minor that `pyproject.toml`'s classifiers list (the
+matrix is read from them, so add a classifier to add a leg), a Windows leg on
+the lowest and highest of those, and one aggregate check named `test` that
+fails unless every leg succeeded. The Linux legs run the suite under
+coverage; the floor is 90% of `src/willow_gate/` — a floor, not a target;
+ratchet it up, never down.
 
 ```sh
-pip install -e '.[dev]' coverage ruff==0.16.4 bandit
+pip install -e '.[dev]' coverage ruff==0.16.7 bandit
 ruff check src tests
+ruff format --check src tests
 bandit -r src -ll -q
 coverage run --include='src/willow_gate/*' -m pytest tests/ -q && coverage report --fail-under=90
 ```
 
 Pin ruff to CI's version. A newer ruff finds things CI does not, and an older
 one misses things CI finds; both read as "passes locally, fails on the PR".
+
+`ruff format` is enforced too. One file is excluded from the formatter on
+purpose, `src/willow_gate/friction_floor.py`, until Wave 6 reconciles it with
+Forge's vendored copy; the reason sits beside the setting in `pyproject.toml`.
 
 ## Receipts, not claims
 
