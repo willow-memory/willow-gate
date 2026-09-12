@@ -5,6 +5,12 @@ Source: OWASP Top 10 for Agentic Applications (ASI01–10, published 2025-12; Al
 co-sponsor breakdown fetched 2026-07-11, guard CLEAN). willow-gate state from
 `~/github/willow-gate` README + tests read this session, and fleet knowledge.
 
+> **Tracked in [`docs/ideas.md`](ideas.md).** Each H-item below is a numbered entry there (H1 is item 1 … H8 is
+> item 9, with the consequence gate as item 7), and *that* file carries the shipped/partial status the
+> reconciler reads and the `Idea-Id` a landing commit cites. This document stays as the reasoning: the
+> OWASP mapping, each item's caveats and dependencies, the sequencing, the H6/H7 duality. Nothing here
+> was rewritten when the pile was cut; the `✅ BUILT` on H1 is the plan's own 2026-07-22 note.
+
 Verify-don't-assert: every item below carries a **gate** — the observable that proves it done.
 Nothing here is built without operator ratification. Ordered by leverage (weakest coverage first).
 
