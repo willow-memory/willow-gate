@@ -21,17 +21,18 @@ capability is "query but not read"), so it is folded into ``read`` before
 comparison. Privilege is cumulative: read ⊆ +write(Steady) ⊆ +execute(Veteran)
 ⊆ +admin(Elder); Exiled/Rookie are read-only.
 """
+
 from willow_gate import TRUST_LEVELS
 
 # The one fleet ladder. This dict MUST be identical to CANONICAL in
 # willow-mcp/tests/test_trust_ladder_canonical.py — that is the cross-repo
 # agreement A9 is about. Change the ladder in BOTH repos or not at all.
 CANONICAL = {
-    0: ("Exiled",  True,  frozenset()),
-    1: ("Rookie",  True,  frozenset({"read"})),
-    2: ("Steady",  False, frozenset({"read", "write"})),
+    0: ("Exiled", True, frozenset()),
+    1: ("Rookie", True, frozenset({"read"})),
+    2: ("Steady", False, frozenset({"read", "write"})),
     3: ("Veteran", False, frozenset({"read", "write", "execute"})),
-    4: ("Elder",   False, frozenset({"read", "write", "execute", "admin"})),
+    4: ("Elder", False, frozenset({"read", "write", "execute", "admin"})),
 }
 
 
@@ -41,12 +42,10 @@ def _fold_query(tools) -> frozenset:
 
 
 def test_trust_levels_match_the_fleet_canonical():
-    got = {
-        n: (tl.name, tl.read_only, _fold_query(tl.allowed_tools))
-        for n, tl in TRUST_LEVELS.items()
-    }
+    got = {n: (tl.name, tl.read_only, _fold_query(tl.allowed_tools)) for n, tl in TRUST_LEVELS.items()}
     assert got == CANONICAL, (
         "willow-gate's TRUST_LEVELS drifted from the fleet canonical trust "
         "ladder. If this change is intended, update CANONICAL here AND the "
         "matching pin in willow-mcp/tests/test_trust_ladder_canonical.py — the "
-        "two authority models must not diverge (box audit A9).")
+        "two authority models must not diverge (box audit A9)."
+    )

@@ -6,6 +6,7 @@ min_pass_count=50 threshold instantly — the rungs were self-certified. The gat
 now accrues its own per-agent count from witnessed check-outs (capped by the
 tools it authorized) and, under WILLOW_GATE_ENFORCE_EARNED_RUNGS, gates on that.
 """
+
 import hashlib
 import hmac
 import json
@@ -19,8 +20,7 @@ SEC = b"elder-secret-0123456789abcdef012"
 
 
 def sign(secret, h):
-    canon = json.dumps({k: h[k] for k in _SIGNED_FIELDS},
-                       sort_keys=True, separators=(",", ":")).encode()
+    canon = json.dumps({k: h[k] for k in _SIGNED_FIELDS}, sort_keys=True, separators=(",", ":")).encode()
     return hmac.new(secret, canon, hashlib.sha256).hexdigest()
 
 
@@ -48,7 +48,7 @@ def hdr(secret, **over):
 @pytest.fixture
 def gate(tmp_path):
     g = WillowGate(base_dir=tmp_path, require_pgp=False)
-    g.register_agent("E1", SEC, max_trust=4)   # ceiling Elder, but nothing earned
+    g.register_agent("E1", SEC, max_trust=4)  # ceiling Elder, but nothing earned
     return g
 
 
@@ -71,7 +71,7 @@ def test_earned_agent_may_enter_when_enforced(gate, monkeypatch):
     monkeypatch.setenv("WILLOW_GATE_ENFORCE_EARNED_RUNGS", "1")
     # An operator (or accrual over real sessions) has recorded 50 earned passes.
     gate._tally["E1"] = {"pass": 50, "fail": 0}
-    ok, _, s = gate.check_in(hdr(SEC, pass_count=0))   # header count now irrelevant
+    ok, _, s = gate.check_in(hdr(SEC, pass_count=0))  # header count now irrelevant
     assert ok and s["trust_level"] == 4
 
 
@@ -81,8 +81,7 @@ def test_accrual_is_capped_by_witnessed_tools(gate, monkeypatch):
     # can hold — do one read, then check out CLAIMING a pass_delta of 999.
     _, _, s = gate.check_in(hdr(SEC, trust_level=1, tools=["read"], nonce="1" * 32))
     gate.authorize_tool(s, "read")
-    exit_h = hdr(SEC, trust_level=1, tools=["read"], nonce="1" * 32,
-                 pass_count=999, timestamp=s["entry_ms"] + 1000)
+    exit_h = hdr(SEC, trust_level=1, tools=["read"], nonce="1" * 32, pass_count=999, timestamp=s["entry_ms"] + 1000)
     ok, _ = gate.check_out(s, exit_h)
     assert ok
     # Accrual is min(claimed 999, distinct tools the gate authorized == {"read"}),
@@ -92,6 +91,6 @@ def test_accrual_is_capped_by_witnessed_tools(gate, monkeypatch):
 
 def test_fail_tally_also_gates(gate, monkeypatch):
     monkeypatch.setenv("WILLOW_GATE_ENFORCE_EARNED_RUNGS", "1")
-    gate._tally["E1"] = {"pass": 50, "fail": 5}     # earned passes but too many fails
+    gate._tally["E1"] = {"pass": 50, "fail": 5}  # earned passes but too many fails
     with pytest.raises(GateError, match="fail_count 5 exceeds 1"):
         gate.check_in(hdr(SEC, pass_count=0, fail_count=0))

@@ -26,6 +26,7 @@ whatever commits and files the test plants. Every helper below that reads the
 tree is shown to fire on a planted violation in this same file, which is the
 house rule `tests/test_scans_fire.py` enforces.
 """
+
 from __future__ import annotations
 
 import ast
@@ -224,7 +225,9 @@ def test_this_tree_keeps_a_pile_and_so_carries_the_trailers_gate():
     assert (REPO_ROOT / PILE).exists(), f"{PILE} is this repo's numbered pile; re-read this file's docstring"
     assert _missing_trailers_gate(REPO_ROOT) == []
     workflow = (REPO_ROOT / TRAILERS).read_text(encoding="utf-8")
-    assert 'pip install "willow-reconciler>=0.6.0"' in workflow, "installed from PyPI, pinned to the conventions release"
+    assert 'pip install "willow-reconciler>=0.6.0"' in workflow, (
+        "installed from PyPI, pinned to the conventions release"
+    )
     repo_arg = _verify_repo_argument(workflow)
     assert repo_arg is not None, "trailers.yml must actually run `reconciler verify`"
     assert "/" in repo_arg, f"--repo {repo_arg!r} is a bare name to the reconciler, not a path"
@@ -280,7 +283,9 @@ def test_the_guard_fires_on_a_title_that_releases_what_its_commits_do_not(guard_
     `ci:` commit must fail — GitHub would put that title in the merge commit
     and release-please would cut 0.1.1 for a workflow edit."""
     run = _run_guard(
-        guard_script, REPO_ROOT, tmp_path,
+        guard_script,
+        REPO_ROOT,
+        tmp_path,
         title="fix(ci): pin the release tag format",
         commits=["ci: pin the release tag format"],
         files=[".github/workflows/release.yml"],
@@ -294,7 +299,9 @@ def test_the_guard_fires_on_a_release_commit_that_touches_nothing_installable(gu
     files only under .github/ — the first check passes and the second must
     catch it, naming what counts as packaged."""
     run = _run_guard(
-        guard_script, REPO_ROOT, tmp_path,
+        guard_script,
+        REPO_ROOT,
+        tmp_path,
         title="ci: rebuild the changelog section",
         commits=["fix(ci): rebuild the changelog section"],
         files=[".github/workflows/release-please.yml", "tests/test_release_wiring.py"],
@@ -309,7 +316,9 @@ def test_the_guard_passes_a_real_release_and_a_hidden_only_pr(guard_script, tmp_
     """The two honest shapes must clear: a `fix:` that changes shipped code,
     and a `ci:` PR whose commits are all hidden (this PR)."""
     real = _run_guard(
-        guard_script, REPO_ROOT, tmp_path,
+        guard_script,
+        REPO_ROOT,
+        tmp_path,
         title="fix: cap a claimed trust level at the registered ceiling",
         commits=["fix: cap a claimed trust level at the registered ceiling"],
         files=["src/willow_gate/gate.py", "tests/test_willowgate.py"],
@@ -318,7 +327,9 @@ def test_the_guard_passes_a_real_release_and_a_hidden_only_pr(guard_script, tmp_
     assert "OK — title cuts a release, and so do the commits." in real.stdout
 
     hidden = _run_guard(
-        guard_script, REPO_ROOT, tmp_path,
+        guard_script,
+        REPO_ROOT,
+        tmp_path,
         title="ci: pr-title guard; the meta-scan",
         commits=["ci: pr-title guard", "test: the meta-scan", "docs: CONTRIBUTING names the test command"],
         files=[".github/workflows/pr-title.yml", "tests/test_scans_fire.py", "CONTRIBUTING.md"],
@@ -332,7 +343,9 @@ def test_a_breaking_marker_counts_as_releasing_whatever_the_type(guard_script, t
     conventional-commit `!` releases (a 1.0.0, below 1.0), so a title wearing
     it over hidden commits is the same asymmetry as `fix:` over `ci:`."""
     run = _run_guard(
-        guard_script, REPO_ROOT, tmp_path,
+        guard_script,
+        REPO_ROOT,
+        tmp_path,
         title="ci!: drop the 3.10 leg",
         commits=["ci: drop the 3.10 leg"],
         files=[".github/workflows/tests.yml"],
@@ -348,13 +361,26 @@ def test_the_guard_follows_the_config_when_a_planted_config_unhides_ci(guard_scr
     config, not baked into the guard."""
     planted_root = tmp_path / "unhidden"
     planted_root.mkdir()
-    (planted_root / RELEASE_CONFIG).write_text(json.dumps({"packages": {".": {"changelog-sections": [
-        {"type": "feat", "section": "Added"},
-        {"type": "ci", "section": "CI"},
-        {"type": "test", "section": "Tests", "hidden": True},
-    ]}}}), encoding="utf-8")
+    (planted_root / RELEASE_CONFIG).write_text(
+        json.dumps(
+            {
+                "packages": {
+                    ".": {
+                        "changelog-sections": [
+                            {"type": "feat", "section": "Added"},
+                            {"type": "ci", "section": "CI"},
+                            {"type": "test", "section": "Tests", "hidden": True},
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     run = _run_guard(
-        guard_script, planted_root, tmp_path,
+        guard_script,
+        planted_root,
+        tmp_path,
         title="ci: touch a workflow",
         commits=["ci: touch a workflow"],
         files=[".github/workflows/tests.yml"],
@@ -424,20 +450,31 @@ def test_the_heredoc_lift_catches_a_planted_workflow_without_one():
     heredoc is indented as GitHub's `run: |` blocks are."""
     with pytest.raises(AssertionError):
         _embedded_script("run: echo hi\n")
-    lifted = _embedded_script("        run: |\n          python - <<'PY'\n          import sys\n          sys.exit(3)\n          PY\n")
+    lifted = _embedded_script(
+        "        run: |\n          python - <<'PY'\n          import sys\n          sys.exit(3)\n          PY\n"
+    )
     assert lifted == "import sys\nsys.exit(3)"
 
 
 def test_the_hidden_set_check_catches_a_planted_config_that_unhides_ci():
     """Planted: `ci` listed without `hidden` and one reasoning comment gone —
     the config jeles had before v0.4.1 taught it otherwise."""
-    planted = json.dumps({"packages": {".": {"changelog-sections": [
-        {"type": "feat", "section": "Added"},
-        {"type": "docs", "section": "Docs", "hidden": True},
-        {"type": "test", "section": "Tests", "hidden": True},
-        {"type": "ci", "section": "CI"},
-        {"type": "chore", "section": "Chores", "hidden": True},
-    ]}}, "$comment-what-cuts-a-release": "kept"})
+    planted = json.dumps(
+        {
+            "packages": {
+                ".": {
+                    "changelog-sections": [
+                        {"type": "feat", "section": "Added"},
+                        {"type": "docs", "section": "Docs", "hidden": True},
+                        {"type": "test", "section": "Tests", "hidden": True},
+                        {"type": "ci", "section": "CI"},
+                        {"type": "chore", "section": "Chores", "hidden": True},
+                    ]
+                }
+            },
+            "$comment-what-cuts-a-release": "kept",
+        }
+    )
     assert _hidden_types(planted) == {"chore", "docs", "test"}
     assert _hidden_types(planted) != HIDDEN_TYPES
     assert _missing_comments(planted) == ["$comment-hidden-rule"]

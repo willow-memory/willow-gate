@@ -88,6 +88,7 @@ with no membership test and no pattern, is outside the rule above. Closing
 those needs an interpreter, not a reader; this scan is the AST-grep half, not
 a promise that it sees everything a scan could be shaped like.
 """
+
 from __future__ import annotations
 
 import ast
@@ -101,10 +102,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 #: over-firing on unrelated names. Carried from the sibling meta-scans as-is:
 #: this repo's own helpers are all found by shape, and the stems are the
 #: safety net for a future helper that hands its work to a caller.
-_NAME_TOKENS = frozenset(
-    {"scan", "scans", "reads", "calls", "offenders", "uses", "check", "checks",
-     "guard", "guards"}
-)
+_NAME_TOKENS = frozenset({"scan", "scans", "reads", "calls", "offenders", "uses", "check", "checks", "guard", "guards"})
 
 #: The convention for "this scan was shown to fire on a planted violation",
 #: read off `tests/test_release_wiring.py`'s real test names. The word is
@@ -122,9 +120,7 @@ _PLANT_DOC_WORDS = ("plant",)
 #: Pattern-matching methods. Matched on the attribute name alone, so both
 #: `re.search(...)` and a module-level `_PACKAGED_LINE.search(...)` count — a
 #: compiled pattern is the same scan with the compile hoisted.
-_MATCH_CALLS = frozenset(
-    {"search", "findall", "finditer", "match", "fullmatch", "compile"}
-)
+_MATCH_CALLS = frozenset({"search", "findall", "finditer", "match", "fullmatch", "compile"})
 
 #: Reading a file's text through `pathlib`. The grep half of a grep-shaped
 #: scan, in the spelling this suite reaches for first.
@@ -159,11 +155,7 @@ THIS_FILE = Path(__file__).name
 
 def _is_open_call(expr: ast.AST) -> bool:
     """A builtin `open(...)`, however its mode and encoding are spelled."""
-    return (
-        isinstance(expr, ast.Call)
-        and isinstance(expr.func, ast.Name)
-        and expr.func.id == "open"
-    )
+    return isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name) and expr.func.id == "open"
 
 
 def _open_handles(node: ast.AST) -> frozenset[str]:
@@ -239,8 +231,7 @@ def _tests_membership(node: ast.AST) -> bool:
     """True if the body asks `x in y` / `x not in y` anywhere — the grep
     question, once the text is in hand."""
     return any(
-        isinstance(sub, ast.Compare)
-        and any(isinstance(op, (ast.In, ast.NotIn)) for op in sub.ops)
+        isinstance(sub, ast.Compare) and any(isinstance(op, (ast.In, ast.NotIn)) for op in sub.ops)
         for sub in ast.walk(node)
     )
 
@@ -276,9 +267,7 @@ def _scans_a_word_list(node: ast.AST, constants: frozenset[str]) -> bool:
             iterables, body = [g.iter for g in sub.generators], [sub]
         else:
             continue
-        if not any(
-            isinstance(it, ast.Name) and it.id in constants for it in iterables
-        ):
+        if not any(isinstance(it, ast.Name) and it.id in constants for it in iterables):
             continue
         if any(_tests_membership(part) for part in body):
             return True
@@ -311,10 +300,7 @@ def _filters_by_membership(node: ast.AST) -> bool:
     """
     for sub in ast.walk(node):
         if isinstance(sub, (ast.ListComp, ast.SetComp, ast.GeneratorExp)):
-            targets = {
-                gen.target.id for gen in sub.generators
-                if isinstance(gen.target, ast.Name)
-            }
+            targets = {gen.target.id for gen in sub.generators if isinstance(gen.target, ast.Name)}
             conditions = [cond for gen in sub.generators for cond in gen.ifs]
         elif isinstance(sub, ast.For) and isinstance(sub.target, ast.Name):
             targets, conditions = {sub.target.id}, list(sub.body)
@@ -343,9 +329,7 @@ def _is_fixture(node: ast.FunctionDef) -> bool:
     return any(_decorator_name(dec) == "fixture" for dec in node.decorator_list)
 
 
-def _is_scan_helper(
-    node: ast.FunctionDef, constants: frozenset[str] = frozenset()
-) -> bool:
+def _is_scan_helper(node: ast.FunctionDef, constants: frozenset[str] = frozenset()) -> bool:
     """A module-level helper counts as a scan/guard if it is shaped like one
     (walks source, matches a pattern, reads a file and asks a membership
     question of it, walks a module-level word list asking membership of each,
@@ -378,17 +362,13 @@ def _is_plant_test(node: ast.FunctionDef) -> bool:
     a plant word in its name, or the narrower "plant" in its docstring."""
     name = node.name.lower()
     doc = (ast.get_docstring(node) or "").lower()
-    return any(word in name for word in _PLANT_NAME_WORDS) or any(
-        word in doc for word in _PLANT_DOC_WORDS
-    )
+    return any(word in name for word in _PLANT_NAME_WORDS) or any(word in doc for word in _PLANT_DOC_WORDS)
 
 
 def _module_helpers(tree: ast.Module) -> dict[str, ast.FunctionDef]:
     """Every module-level, non-test function in one tests module, by name."""
     return {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and not node.name.startswith("test_")
+        node.name: node for node in tree.body if isinstance(node, ast.FunctionDef) and not node.name.startswith("test_")
     }
 
 
@@ -396,20 +376,12 @@ def _scan_helpers(source: str) -> list[str]:
     """Every module-level scan-helper function name in one tests module."""
     tree = ast.parse(source)
     constants = _module_collection_constants(tree)
-    return sorted(
-        name
-        for name, node in _module_helpers(tree).items()
-        if _is_scan_helper(node, constants)
-    )
+    return sorted(name for name, node in _module_helpers(tree).items() if _is_scan_helper(node, constants))
 
 
 def _direct_calls(node: ast.AST, known: dict[str, ast.FunctionDef]) -> set[str]:
     """The module's own helpers this node calls by bare name."""
-    return {
-        call.func.id
-        for call in _calls_in(node)
-        if isinstance(call.func, ast.Name) and call.func.id in known
-    }
+    return {call.func.id for call in _calls_in(node) if isinstance(call.func, ast.Name) and call.func.id in known}
 
 
 def _helpers_the_plants_exercise(source: str) -> set[str]:
@@ -509,11 +481,7 @@ def _unplanted_shared_scan_helpers(tests_dir: Path = TESTS_DIR) -> list[str]:
     exercised: set[str] = set()
     for path in sorted(tests_dir.glob("test_*.py")):
         exercised |= _names_the_plants_call(path.read_text(encoding="utf-8"))
-    return [
-        name
-        for name in _scan_helpers(shared.read_text(encoding="utf-8"))
-        if name not in exercised
-    ]
+    return [name for name in _scan_helpers(shared.read_text(encoding="utf-8")) if name not in exercised]
 
 
 def _offenders(tests_dir: Path = TESTS_DIR) -> list[str]:
@@ -551,10 +519,7 @@ def test_the_suite_has_scans_for_this_rule_to_hold():
     helper, and the rule above would have passed on an empty set. It must
     now find at least this file's own helpers and Bite 1's, or a refactor
     that renamed every helper into invisibility would read as clean."""
-    found = {
-        path.name: _scan_helpers(path.read_text(encoding="utf-8"))
-        for path in sorted(TESTS_DIR.glob("test_*.py"))
-    }
+    found = {path.name: _scan_helpers(path.read_text(encoding="utf-8")) for path in sorted(TESTS_DIR.glob("test_*.py"))}
     assert found[THIS_FILE], "this file's own helpers are scans by its own rule"
     assert found["test_release_wiring.py"], "Bite 1's tree readers are scans by this rule"
 
@@ -589,8 +554,7 @@ def test_the_meta_scan_finds_an_ast_shaped_scan_whatever_it_is_named(tmp_path):
     )
 
     assert _scan_helpers(source) == ["check_payload_reach"], (
-        "an ast.parse/ast.walk scan must be found under any name, public or "
-        f"private; got {_scan_helpers(source)}"
+        f"an ast.parse/ast.walk scan must be found under any name, public or private; got {_scan_helpers(source)}"
     )
     assert _unplanted_scan_helpers(source) == ["check_payload_reach"], (
         "and with no planted-violation test in the file it must be reported"
@@ -663,8 +627,7 @@ def test_the_meta_scan_finds_a_word_list_scan(tmp_path):
     )
 
     assert _scan_helpers(source) == ["missing"], (
-        "a scan that walks a module-level word list asking membership of each "
-        f"is a scan; got {_scan_helpers(source)}"
+        f"a scan that walks a module-level word list asking membership of each is a scan; got {_scan_helpers(source)}"
     )
     assert _unplanted_scan_helpers(source) == ["missing"]
 
@@ -703,8 +666,7 @@ def test_the_meta_scan_finds_a_scan_handed_its_word_list_by_the_caller(tmp_path)
         "    assert not terms_found('a reference only', ('1234',))\n",
     )
     assert _scan_helpers(source) == ["terms_found"], (
-        "a helper that filters the caller's terms by membership is a scan; "
-        f"got {_scan_helpers(source)}"
+        f"a helper that filters the caller's terms by membership is a scan; got {_scan_helpers(source)}"
     )
     assert _unplanted_scan_helpers(source) == ["terms_found"]
 
@@ -770,8 +732,7 @@ def test_the_plant_check_requires_the_plant_test_to_call_the_scan(tmp_path):
 
     assert _scan_helpers(source) == ["_payload_reaches"]
     assert _unplanted_scan_helpers(source) == ["_payload_reaches"], (
-        "a plant test that never calls the scan has not fired it; the word in "
-        "the test's name is not the evidence"
+        "a plant test that never calls the scan has not fired it; the word in the test's name is not the evidence"
     )
 
 
@@ -796,9 +757,7 @@ def test_a_plant_that_calls_the_scan_through_a_helper_clears_it(tmp_path):
     )
 
     assert _scan_helpers(source) == ["_offenders_in", "_payload_reaches"]
-    assert _unplanted_scan_helpers(source) == [], (
-        "both the wrapper and the helper it calls were exercised by the plant"
-    )
+    assert _unplanted_scan_helpers(source) == [], "both the wrapper and the helper it calls were exercised by the plant"
 
 
 def test_a_docstring_saying_fires_about_something_else_does_not_clear_a_scan(tmp_path):
@@ -822,8 +781,7 @@ def test_a_docstring_saying_fires_about_something_else_does_not_clear_a_scan(tmp
 
     assert _scan_helpers(source) == ["_reaches"]
     assert _unplanted_scan_helpers(source) == ["_reaches"], (
-        "prose using the word 'fires' is not a plant; the scan is still "
-        "unproven and must still be reported"
+        "prose using the word 'fires' is not a plant; the scan is still unproven and must still be reported"
     )
 
 
@@ -896,8 +854,7 @@ def _planted_tests_dir(tmp_path: Path, *, shared: bool) -> Path:
     )
     if shared:
         (root / SHARED_SCANS_NAME).write_text(
-            "def terms_found(haystack, terms):\n"
-            "    return [term for term in terms if term in haystack]\n",
+            "def terms_found(haystack, terms):\n    return [term for term in terms if term in haystack]\n",
             encoding="utf-8",
         )
     return root
@@ -947,8 +904,7 @@ def test_a_plant_reaches_a_shared_helper_through_an_import_alias(tmp_path):
         "    assert True\n",
     )
     assert _names_the_plants_call(quiet) == frozenset(), (
-        "importing a helper is not calling it; the plant word in the name is "
-        "not the evidence here either"
+        "importing a helper is not calling it; the plant word in the name is not the evidence here either"
     )
 
 
@@ -990,8 +946,18 @@ def test_this_repo_has_no_shared_scan_module_so_that_rule_is_vacuous_here():
 #: to a *name*, not one of these, so a dict built from a read is still
 #: several steps removed and still not a scan.
 _TEXT_SLICERS = _TEXT_WRAPPERS | frozenset(
-    {"split", "rsplit", "splitlines", "partition", "rpartition", "replace",
-     "lstrip", "rstrip", "removeprefix", "removesuffix"}
+    {
+        "split",
+        "rsplit",
+        "splitlines",
+        "partition",
+        "rpartition",
+        "replace",
+        "lstrip",
+        "rstrip",
+        "removeprefix",
+        "removesuffix",
+    }
 )
 
 
@@ -1001,11 +967,7 @@ def _text_root(expr: ast.AST) -> ast.AST:
     while True:
         if isinstance(expr, ast.Subscript):
             expr = expr.value
-        elif (
-            isinstance(expr, ast.Call)
-            and isinstance(expr.func, ast.Attribute)
-            and expr.func.attr in _TEXT_SLICERS
-        ):
+        elif isinstance(expr, ast.Call) and isinstance(expr.func, ast.Attribute) and expr.func.attr in _TEXT_SLICERS:
             expr = expr.func.value
         else:
             return expr
@@ -1033,9 +995,7 @@ def _direct_text_names(func: ast.FunctionDef) -> frozenset[str]:
         for targets, root in assigns:
             if not targets or set(targets) <= names:
                 continue
-            if _is_read_call(root, handles) or (
-                isinstance(root, ast.Name) and root.id in names
-            ):
+            if _is_read_call(root, handles) or (isinstance(root, ast.Name) and root.id in names):
                 names.update(targets)
                 grew = True
         if not grew:
@@ -1043,13 +1003,9 @@ def _direct_text_names(func: ast.FunctionDef) -> frozenset[str]:
     return frozenset(names)
 
 
-def _is_text_source(
-    expr: ast.AST, direct_names: frozenset[str], handles: frozenset[str]
-) -> bool:
+def _is_text_source(expr: ast.AST, direct_names: frozenset[str], handles: frozenset[str]) -> bool:
     root = _text_root(expr)
-    return _is_read_call(root, handles) or (
-        isinstance(root, ast.Name) and root.id in direct_names
-    )
+    return _is_read_call(root, handles) or (isinstance(root, ast.Name) and root.id in direct_names)
 
 
 def _membership_on_read_text(node: ast.FunctionDef) -> bool:
@@ -1114,9 +1070,7 @@ def _imported_names(tree: ast.Module) -> frozenset[str]:
     return frozenset(names)
 
 
-def _calls_any_by_name(
-    node: ast.AST, bare: frozenset[str], attrs: frozenset[str] | None = None
-) -> bool:
+def _calls_any_by_name(node: ast.AST, bare: frozenset[str], attrs: frozenset[str] | None = None) -> bool:
     """True if `node` delegates to a known scan helper: a bare call to one of
     `bare`, or `module.helper(...)` for one of `attrs`.
 
@@ -1139,9 +1093,7 @@ def _resolvable_helpers(source: str, global_helpers: frozenset[str]) -> frozense
     """The known scan helpers this module can reach by a *bare* name: the
     ones it imports, and the ones it defines itself."""
     tree = ast.parse(source)
-    return global_helpers & (
-        _imported_names(tree) | frozenset(_scan_helpers(source))
-    )
+    return global_helpers & (_imported_names(tree) | frozenset(_scan_helpers(source)))
 
 
 def _is_inline_scan(
@@ -1163,10 +1115,7 @@ def _is_inline_scan(
     `in` hidden behind a delegated call is not seen. The alternative pushes
     those preconditions out of sight, which is worse.
     """
-    if not (
-        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name.startswith("test_")
-    ):
+    if not (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")):
         return False
     if _is_fixture(node):
         return False
@@ -1201,11 +1150,7 @@ def _inline_scan_tests(source: str, global_helpers: frozenset[str]) -> list[str]
     scan by the rule above."""
     tree = ast.parse(source)
     bare = _resolvable_helpers(source, global_helpers)
-    return sorted(
-        name
-        for name, node in _test_functions(tree)
-        if _is_inline_scan(node, global_helpers, bare)
-    )
+    return sorted(name for name, node in _test_functions(tree) if _is_inline_scan(node, global_helpers, bare))
 
 
 def _inline_scan_offenders(tests_dir: Path = TESTS_DIR) -> list[str]:
@@ -1239,9 +1184,7 @@ def test_the_inline_sweep_fires_on_a_planted_tests_tree(tmp_path):
     """Planted: `_inline_scan_offenders` run end to end on a temporary tests
     directory whose `test_inline.py` reads a real file and asks `in` of the
     text with no helper anywhere to delegate to."""
-    assert _inline_scan_offenders(_planted_tests_dir(tmp_path, shared=False)) == [
-        "test_inline.py::test_no_banned_word"
-    ]
+    assert _inline_scan_offenders(_planted_tests_dir(tmp_path, shared=False)) == ["test_inline.py::test_no_banned_word"]
 
 
 def test_the_inline_scan_check_finds_a_scan_written_directly_in_a_test_body(tmp_path):
@@ -1273,10 +1216,7 @@ def test_the_inline_scan_check_knows_every_spelling_of_reading_a_real_file(tmp_p
     `inspect.getsource` — each is reading a real file and must be seen."""
     spellings = {
         "open_chain": "    text = open('x', encoding='utf-8').read()\n",
-        "open_with": (
-            "    with open('x', encoding='utf-8') as handle:\n"
-            "        text = handle.read()\n"
-        ),
+        "open_with": ("    with open('x', encoding='utf-8') as handle:\n        text = handle.read()\n"),
         "read_bytes_decode": "    text = Path('x').read_bytes().decode()\n",
         "getsource": "    text = inspect.getsource(Path)\n",
     }
@@ -1417,9 +1357,9 @@ def test_delegating_clears_a_test_that_also_asks_its_own_question(tmp_path):
         "    assert _arms_automerge(Path('x'))\n",
     )
     assert _inline_scan_tests(source, frozenset({"_arms_automerge"})) == []
-    assert _inline_scan_tests(source, frozenset()) == [
-        "test_the_planted_workflow_is_reported"
-    ], "and with no helper behind it, the same body is an inline scan"
+    assert _inline_scan_tests(source, frozenset()) == ["test_the_planted_workflow_is_reported"], (
+        "and with no helper behind it, the same body is an inline scan"
+    )
 
 
 def test_a_local_function_sharing_a_helpers_name_does_not_clear_a_scan(tmp_path):
@@ -1441,9 +1381,9 @@ def test_a_local_function_sharing_a_helpers_name_does_not_clear_a_scan(tmp_path)
         "    assert _sections(text)\n"
         "    assert 'banned' not in text\n",
     )
-    assert _inline_scan_tests(shadow, frozenset({"_sections"})) == [
-        "test_no_banned_word"
-    ], "a local `_sections` is not another module's `_sections`"
+    assert _inline_scan_tests(shadow, frozenset({"_sections"})) == ["test_no_banned_word"], (
+        "a local `_sections` is not another module's `_sections`"
+    )
 
     imported = _write(
         tmp_path,
@@ -1457,8 +1397,7 @@ def test_a_local_function_sharing_a_helpers_name_does_not_clear_a_scan(tmp_path)
         "    assert 'banned' not in text\n",
     )
     assert _inline_scan_tests(imported, frozenset({"_sections"})) == [], (
-        "and the same call, of the helper this module really imported, is "
-        "the delegation it looks like"
+        "and the same call, of the helper this module really imported, is the delegation it looks like"
     )
 
 
@@ -1476,9 +1415,9 @@ def test_the_inline_scan_check_reads_class_methods_and_async_tests_too(tmp_path)
         "        text = Path('x').read_text(encoding='utf-8')\n"
         "        assert 'banned' not in text\n",
     )
-    assert _inline_scan_tests(in_a_class, frozenset()) == [
-        "TestTheTree::test_no_banned_word"
-    ], "a scan in a test class's method is still a scan, and is named as one"
+    assert _inline_scan_tests(in_a_class, frozenset()) == ["TestTheTree::test_no_banned_word"], (
+        "a scan in a test class's method is still a scan, and is named as one"
+    )
 
     awaited = _write(
         tmp_path,

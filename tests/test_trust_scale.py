@@ -8,6 +8,7 @@ the call site — to this repo's own ladder. Every invariant here gets a test
 that attempts the forbidden comparison and asserts it is refused, per this
 repo's testing convention.
 """
+
 import hashlib
 import hmac
 import json
@@ -29,8 +30,12 @@ def test_no_two_trust_levels_compare_with_an_operator():
     here, on every pair — not just the one pair somebody thought to try."""
     for a in ALL:
         for b in ALL:
-            for op, sym in ((lambda x, y: x < y, "<"), (lambda x, y: x > y, ">"),
-                            (lambda x, y: x <= y, "<="), (lambda x, y: x >= y, ">=")):
+            for op, sym in (
+                (lambda x, y: x < y, "<"),
+                (lambda x, y: x > y, ">"),
+                (lambda x, y: x <= y, "<="),
+                (lambda x, y: x >= y, ">="),
+            ):
                 try:
                     op(a, b)
                 except TypeError:
@@ -88,8 +93,7 @@ def test_the_module_is_not_broken_shut():
 
 
 def test_from_int_round_trips_every_wire_value():
-    for n, t in ((0, Trust.EXILED), (1, Trust.ROOKIE), (2, Trust.STEADY),
-                 (3, Trust.VETERAN), (4, Trust.ELDER)):
+    for n, t in ((0, Trust.EXILED), (1, Trust.ROOKIE), (2, Trust.STEADY), (3, Trust.VETERAN), (4, Trust.ELDER)):
         assert from_int(n) is t
         assert to_int(t) == n
 
@@ -117,8 +121,7 @@ SEC = b"ceiling-secret-0123456789abcdef0"
 
 
 def sign(secret, h):
-    canon = json.dumps({k: h[k] for k in _SIGNED_FIELDS},
-                       sort_keys=True, separators=(",", ":")).encode()
+    canon = json.dumps({k: h[k] for k in _SIGNED_FIELDS}, sort_keys=True, separators=(",", ":")).encode()
     return hmac.new(secret, canon, hashlib.sha256).hexdigest()
 
 

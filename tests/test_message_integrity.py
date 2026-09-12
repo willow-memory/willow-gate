@@ -9,6 +9,7 @@ multi-reader bus, so symmetric HMAC would let any verifier forge any peer.
 Ed25519 — sign with private, verify with public — is the only shape where
 verification grants no forging power. No test here touches HMAC.
 """
+
 import json
 
 import pytest
@@ -29,6 +30,7 @@ def _attacker_forge(msg, attacker_keys):
     the receiver-side defense being tested, not the sender-side one."""
     import time as _t
     import uuid as _u
+
     out = dict(msg)
     out["nonce"] = _u.uuid4().hex
     out["signed_at"] = int(_t.time())

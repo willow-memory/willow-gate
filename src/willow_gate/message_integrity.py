@@ -21,6 +21,7 @@ own). Nonce burn persists across restarts, same as `WillowGate._used`.
 Depends only on `cryptography` (already transitively present via the fleet's
 Ed25519 use); no new primitive is introduced.
 """
+
 from __future__ import annotations
 
 import json
@@ -101,9 +102,7 @@ def generate_agent_keypair(agent_id: str, *, key_dir: Path) -> AgentKeypair:
         with os.fdopen(fd, "wb") as f:
             f.write(pem)
 
-    pub_pem = priv.public_key().public_bytes(
-        Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
-    ).decode()
+    pub_pem = priv.public_key().public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode()
     pub_path.write_text(pub_pem)
     return AgentKeypair(agent_id=agent_id, private_path=priv_path, public_pem=pub_pem)
 
@@ -115,8 +114,7 @@ def sign_message(msg: dict, keys: AgentKeypair) -> dict:
     sign a message that claims to be from someone else (the local half of the
     forged-sender defense; the receiver enforces the other half)."""
     if msg.get("sender") not in (keys.agent_id, None):
-        raise IntegrityError(
-            f"refusing to sign: sender={msg.get('sender')!r} != key {keys.agent_id!r}")
+        raise IntegrityError(f"refusing to sign: sender={msg.get('sender')!r} != key {keys.agent_id!r}")
     out = dict(msg)
     out.setdefault("sender", keys.agent_id)
     out["nonce"] = uuid.uuid4().hex
@@ -155,9 +153,7 @@ class MessageVerifier:
         attacker would install their own key, so it is refused loudly."""
         existing = self._registry.get(agent_id)
         if existing is not None and existing != public_pem and not rotate:
-            raise IntegrityError(
-                f"key rotation for {agent_id!r} requires rotate=True "
-                "(refusing silent overwrite)")
+            raise IntegrityError(f"key rotation for {agent_id!r} requires rotate=True (refusing silent overwrite)")
         # Validate it parses as Ed25519 before trusting it.
         key = load_pem_public_key(public_pem.encode())
         if not isinstance(key, Ed25519PublicKey):

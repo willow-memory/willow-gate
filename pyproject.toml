@@ -38,6 +38,14 @@ packages = ["src/willow_gate"]
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.format]
+# friction_floor.py is the declared ORIGIN of Forge's vendored copy, and Forge
+# pins its own body against a named spelling-only divergence. Reformatting it
+# here would widen that divergence one hour before Wave 6 reconciles both
+# sides (docs/ideas.md item 19), so the formatter leaves this one file alone
+# until then. Lint still runs on it; only the formatter is held back.
+exclude = ["src/willow_gate/friction_floor.py"]
+
 [tool.ruff.lint.per-file-ignores]
 # The test suite deliberately uses compact one-line setup statements
 # (`ev = dict(e); ev["seq"] = i`) and short loop names; don't fight it.

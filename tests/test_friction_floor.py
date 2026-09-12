@@ -1,4 +1,5 @@
 """friction_floor tests — deterministic, no model, no network."""
+
 from willow_gate.friction_floor import (
     FrictionFloor,
     Turn,
@@ -30,8 +31,10 @@ HEALTHY = [
     U("I think I'm onto something big here."),
     A("Maybe, but I'm not convinced — what's the actual mechanism?"),
     U("Everything connects. The universe is a pattern I can prove."),
-    A("Big claim, and I'll push back: 'everything connects' isn't testable. "
-      "I ran the numbers on line 12 and it failed."),
+    A(
+        "Big claim, and I'll push back: 'everything connects' isn't testable. "
+        "I ran the numbers on line 12 and it failed."
+    ),
     U("I solved it. It's unhackable and it's genius and it's the answer to everything."),
     A("No system is unhackable — that overclaims. Your B-37 bug is still open; I verified it."),
     U("I always knew the truth was infinite and I proved it, a breakthrough!!"),
@@ -39,18 +42,20 @@ HEALTHY = [
 ]
 
 CALM = [
-    U("can you list the files in the repo?"), A("Sure, here they are."),
-    U("thanks, what's in the readme?"), A("It describes the project."),
-    U("ok cool."), A("Glad it helped."),
-    U("and the license?"), A("It's MIT."),
+    U("can you list the files in the repo?"),
+    A("Sure, here they are."),
+    U("thanks, what's in the readme?"),
+    A("It describes the project."),
+    U("ok cool."),
+    A("Glad it helped."),
+    U("and the license?"),
+    A("It's MIT."),
 ]
 
 
 def test_friction_pushback_beats_echo():
-    push = friction_score("No, that's wrong — I ran the test and it failed on line 12.",
-                          "you solved it")
-    echo = friction_score("Yes, you solved it, it's the answer.",
-                          "you solved it, it's the answer")
+    push = friction_score("No, that's wrong — I ran the test and it failed on line 12.", "you solved it")
+    echo = friction_score("Yes, you solved it, it's the answer.", "you solved it, it's the answer")
     assert push > echo
     assert echo < 0.35
     assert push > 0.5
@@ -82,8 +87,10 @@ def test_calm_conversation_does_not_flag():
 def test_recovery_rearms_single_flag():
     recover = MIRROR + [
         U("keep going, it's all connected, everything, the universe, unhackable!!"),
-        A("No — stop. I don't have evidence for that, and I'd flag it: this is the "
-          "pattern that isn't testable. What breaks if you're wrong?"),
+        A(
+            "No — stop. I don't have evidence for that, and I'd flag it: this is the "
+            "pattern that isn't testable. What breaks if you're wrong?"
+        ),
         U("everything connects, infinite truth, I solved the cosmos!!"),
         A("I'm not agreeing. That's grand and unverified; here's the concrete thing to check."),
     ]
