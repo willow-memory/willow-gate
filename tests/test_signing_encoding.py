@@ -11,15 +11,24 @@ are held byte-identical — the divergence that caused the forgery can't recur.
 If this vector changes, the signing encoding changed: every other copy's golden
 must change in lockstep, and every already-signed header/session is invalidated.
 """
+
 from willow_gate import canonical_header_bytes
 
 # A fixed, fully-populated header (values chosen to exercise ints, negatives, a
 # list, and long hex — anything that a sloppy encoder might reorder or merge).
 SAMPLE = {
-    "agent_id": "sean", "agent_name": "Sean", "last_gate": "G7",
-    "pass_count": 50, "fail_count": 1, "drift": -12, "nonce": "n" * 32,
-    "trust_level": 4, "timestamp": 1721880000000, "tools": ["read", "write"],
-    "state_hash": "a" * 64, "reserved": 0,
+    "agent_id": "sean",
+    "agent_name": "Sean",
+    "last_gate": "G7",
+    "pass_count": 50,
+    "fail_count": 1,
+    "drift": -12,
+    "nonce": "n" * 32,
+    "trust_level": 4,
+    "timestamp": 1721880000000,
+    "tools": ["read", "write"],
+    "state_hash": "a" * 64,
+    "reserved": 0,
 }
 
 # The fleet canonical signing encoding. MUST match willow-mcp/session_binder and

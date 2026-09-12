@@ -38,6 +38,7 @@ tests/). Two bugs were found and fixed by running it — read was universal in
 the docstring but not the code, and the write flag keyed off the wrong axis.
 The rule held: test before you trust, and this file was no exception.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -57,29 +58,32 @@ from willow_gate.trust_scale import Trust, at_least, from_int, outranks, to_int 
 
 # ─── Trust levels ────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class TrustLevel:
     name: str
-    entry_allowed: bool          # may open a session at all (willow-gate#12);
-                                 # Exiled=False is refused at check_in. read is
-                                 # universal but session-less for a true outsider.
+    entry_allowed: bool  # may open a session at all (willow-gate#12);
+    # Exiled=False is refused at check_in. read is
+    # universal but session-less for a true outsider.
     read_only: bool
     write_export_allowed: bool
-    announcement_volume: str     # HARDENED(5): was blast_radius; = audit loudness
+    announcement_volume: str  # HARDENED(5): was blast_radius; = audit loudness
     max_drift_ms: int | None
     max_fail_count: int | None
     min_pass_count: int | None
     allowed_tools: tuple[str, ...]
-    audit_level: str             # "full" | "minimal"
+    audit_level: str  # "full" | "minimal"
 
 
 # HARDENED(7): drift/fail tighten as trust rises — power gets less slack, not more.
 TRUST_LEVELS: dict[int, TrustLevel] = {
-    0: TrustLevel("Exiled",  False, True,  False, "maximum", None,  None, None, (),                                             "full"),
-    1: TrustLevel("Rookie",  True,  True,  False, "large",   5000,  5,    0,   ("read",),                                       "full"),
-    2: TrustLevel("Steady",  True,  False, True,  "medium",  3000,  3,    3,   ("read", "write"),                               "full"),
-    3: TrustLevel("Veteran", True,  False, True,  "small",   2000,  2,    11,  ("read", "write", "query", "execute"),           "minimal"),
-    4: TrustLevel("Elder",   True,  False, True,  "minimal", 1000,  1,    50,  ("read", "write", "query", "execute", "admin"),  "minimal"),
+    0: TrustLevel("Exiled", False, True, False, "maximum", None, None, None, (), "full"),
+    1: TrustLevel("Rookie", True, True, False, "large", 5000, 5, 0, ("read",), "full"),
+    2: TrustLevel("Steady", True, False, True, "medium", 3000, 3, 3, ("read", "write"), "full"),
+    3: TrustLevel("Veteran", True, False, True, "small", 2000, 2, 11, ("read", "write", "query", "execute"), "minimal"),
+    4: TrustLevel(
+        "Elder", True, False, True, "minimal", 1000, 1, 50, ("read", "write", "query", "execute", "admin"), "minimal"
+    ),
 }
 
 READ_TOOL = "read"
@@ -87,8 +91,18 @@ READ_TOOL = "read"
 _VOLUME_REPEAT = {"maximum": 5, "large": 3, "medium": 2, "small": 1, "minimal": 1}
 
 REQUIRED_FIELDS: set[str] = {
-    "agent_id", "agent_name", "last_gate", "pass_count", "fail_count", "drift",
-    "nonce", "trust_level", "timestamp", "tools", "state_hash", "signature",
+    "agent_id",
+    "agent_name",
+    "last_gate",
+    "pass_count",
+    "fail_count",
+    "drift",
+    "nonce",
+    "trust_level",
+    "timestamp",
+    "tools",
+    "state_hash",
+    "signature",
     "reserved",
 }
 # Fields the HMAC signs (everything except the signature itself).
@@ -104,8 +118,7 @@ def canonical_header_bytes(header: dict) -> bytes:
     byte-identical output for the same header; a shared golden vector pins it in
     each repo (tests/test_signing_encoding.py) so the copies cannot silently
     diverge again. Reuse this instead of hand-rolling a fourth copy."""
-    return json.dumps({k: header[k] for k in _SIGNED_FIELDS},
-                      sort_keys=True, separators=(",", ":")).encode()
+    return json.dumps({k: header[k] for k in _SIGNED_FIELDS}, sort_keys=True, separators=(",", ":")).encode()
 
 
 class GateError(Exception):
@@ -113,6 +126,7 @@ class GateError(Exception):
 
 
 # ─── The gate ────────────────────────────────────────────────────────────────
+
 
 class WillowGate:
     BASE_DIR = Path("/willowgate")
@@ -172,13 +186,14 @@ class WillowGate:
             raise GateError("PGP required but python-gnupg is not installed")
         if not self.operator_key_fpr:
             raise GateError(
-                "PGP required but no operator key fingerprint set "
-                "(pass operator_key_fpr= or export WILLOWGATE_KEY_FPR)")
+                "PGP required but no operator key fingerprint set (pass operator_key_fpr= or export WILLOWGATE_KEY_FPR)"
+            )
         fprs = {k.get("fingerprint", "") for k in self.gpg.list_keys()}
         if self.operator_key_fpr not in fprs:
             raise GateError(
                 f"operator key {self.operator_key_fpr} not in keyring — import the "
-                "public key you want the ledger encrypted to")
+                "public key you want the ledger encrypted to"
+            )
 
     def register_agent(self, agent_id: str, secret: bytes, max_trust: int) -> None:
         """Bind an agent identity to a shared secret and a MAX trust ceiling.
@@ -205,8 +220,7 @@ class WillowGate:
         demoting any live agent: header counts stay authoritative until an operator
         seeds trust_tally.json with earned levels and turns this on. ON: the rung
         thresholds read the gate's own accrued tally, not the self-signed header."""
-        return os.environ.get("WILLOW_GATE_ENFORCE_EARNED_RUNGS", "").strip().lower() in (
-            "1", "true", "yes", "on")
+        return os.environ.get("WILLOW_GATE_ENFORCE_EARNED_RUNGS", "").strip().lower() in ("1", "true", "yes", "on")
 
     def _agent_tally(self, agent_id: str) -> dict[str, int]:
         t = self._tally.get(agent_id) or {}
@@ -238,7 +252,7 @@ class WillowGate:
         if extra:
             raise GateError(f"unknown fields: {sorted(extra)}")  # 13 in, 13 out
         if data["reserved"] != 0:
-            raise GateError("trap field 'reserved' must be 0")   # canary tripped
+            raise GateError("trap field 'reserved' must be 0")  # canary tripped
         tl = data["trust_level"]
         if tl not in TRUST_LEVELS:
             raise GateError(f"bad trust_level: {tl}")
@@ -270,8 +284,7 @@ class WillowGate:
         except ValueError as exc:
             raise GateError(str(exc)) from None
         if outranks(claimed_trust, ceiling_trust):
-            raise GateError(
-                f"trust claim {claimed} exceeds registered ceiling {ceiling}")
+            raise GateError(f"trust claim {claimed} exceeds registered ceiling {ceiling}")
         return claimed
 
     # ── check-in ────────────────────────────────────────────────────────────
@@ -289,8 +302,7 @@ class WillowGate:
         # claimed to mediate. This is the field's namesake meaning, and it is what
         # makes Exiled distinct from Rookie (both are otherwise read-only).
         if not level.entry_allowed:
-            raise GateError(
-                f"entry denied: {level.name} (level {trust}) may not open a session")
+            raise GateError(f"entry denied: {level.name} (level {trust}) may not open a session")
 
         # Drift is a genuine per-session, self-reported timing signal — it stays
         # from the header. The earned counts do NOT: when enforcement is on they
@@ -316,8 +328,8 @@ class WillowGate:
         declared = set(header["tools"])
         if not declared <= (set(level.allowed_tools) | {READ_TOOL}):
             raise GateError(
-                f"declared tools {sorted(declared)} exceed level {level.name} "
-                f"grant {list(level.allowed_tools)} (+read)")
+                f"declared tools {sorted(declared)} exceed level {level.name} grant {list(level.allowed_tools)} (+read)"
+            )
 
         # HARDENED(6): read is universal; write depends on the level's read_only
         # axis, not entry_allowed (Rookie may enter but is still read-only).
@@ -348,8 +360,7 @@ class WillowGate:
 
     # ── inline enforcement (the actual lock) ─────────────────────────────────
 
-    def authorize_tool(self, session: dict, tool: str, *, export: bool = False
-                       ) -> tuple[bool, str]:
+    def authorize_tool(self, session: dict, tool: str, *, export: bool = False) -> tuple[bool, str]:
         """HARDENED(1): call this BEFORE every tool use. It PREVENTS — a denied
         call never runs. This is the difference between a gate and a ledger."""
         # The caller-passed dict identifies the session by nonce ONLY; every
@@ -424,7 +435,8 @@ class WillowGate:
         if not (used - {READ_TOOL}) <= real["granted_tools"]:
             raise GateError(
                 f"tools used {sorted(used)} exceed grant {sorted(real['granted_tools'])} "
-                "— out-of-band tool use detected")
+                "— out-of-band tool use detected"
+            )
         if not used <= real["tools_used"]:
             # used a tool at exit it never cleared through authorize_tool()
             raise GateError("exit tool manifest includes unauthorized calls")
@@ -445,10 +457,7 @@ class WillowGate:
         # cannot inflate the ladder faster than real gate-authorized work. Accrued
         # even when enforcement is off, so the tally is populated and truthful the
         # day an operator turns enforcement on.
-        self._accrue_tally(
-            real["agent_id"],
-            min(diff["pass_delta"], len(real["tools_used"])),
-            diff["fail_delta"])
+        self._accrue_tally(real["agent_id"], min(diff["pass_delta"], len(real["tools_used"])), diff["fail_delta"])
         self._announce(real, f"CHECK-OUT dur={duration}ms diff={diff}")
         del self.sessions[real["nonce"]]
         return True, f"CHECK-OUT COMPLETE — {duration}ms, {diff['pass_delta']:+d} pass"
@@ -459,8 +468,7 @@ class WillowGate:
         raw = json.dumps(payload, sort_keys=True).encode()
         path = self.ledger_dir / f"{nonce}.{kind}.gpg"
         if self.require_pgp:
-            enc = self.gpg.encrypt(raw, recipients=[self.operator_key_fpr],
-                                   always_trust=True)
+            enc = self.gpg.encrypt(raw, recipients=[self.operator_key_fpr], always_trust=True)
             if not enc.ok:
                 raise GateError(f"ledger encryption failed: {enc.status}")
             path.write_bytes(enc.data)
@@ -478,6 +486,7 @@ class WillowGate:
 
 # ─── The harness ─────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class Tool:
     """A named tool callable bound behind the gate. `export` marks a tool whose
@@ -485,6 +494,7 @@ class Tool:
     write_export_allowed on every call, exactly as authorize_tool's own
     `export=` flag is (a read-only level may run a non-export tool it was
     granted, but never an export one)."""
+
     name: str
     fn: Callable
     export: bool = False
@@ -526,4 +536,5 @@ if __name__ == "__main__":  # tiny smoke shape (needs a registered agent + key)
     raise SystemExit(
         "WillowGate is a library. Register an agent, then check_in / "
         "authorize_tool / check_out. See module docstring — and test it, "
-        "because it has not been run.")
+        "because it has not been run."
+    )

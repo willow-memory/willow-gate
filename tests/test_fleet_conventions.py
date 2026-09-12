@@ -41,6 +41,7 @@ What each published rule means here, on this tree:
 Every helper that reads the tree is shown to fire on a planted violation in
 this same file — `tests/test_scans_fire.py`'s house rule.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -254,13 +255,22 @@ def test_the_hidden_set_check_catches_a_planted_config_that_unhides_ci():
     """Planted: `ci` listed without `hidden`, and only one reasoning comment
     — kept inside `packages["."]`, the other place the fleet's configs put
     it — so the missing one is reported wherever the present one lives."""
-    planted = json.dumps({"packages": {".": {"changelog-sections": [
-        {"type": "feat", "section": "Added"},
-        {"type": "docs", "section": "Docs", "hidden": True},
-        {"type": "test", "section": "Tests", "hidden": True},
-        {"type": "ci", "section": "CI"},
-        {"type": "chore", "section": "Chores", "hidden": True},
-    ], "$comment-what-cuts-a-release": "kept"}}})
+    planted = json.dumps(
+        {
+            "packages": {
+                ".": {
+                    "changelog-sections": [
+                        {"type": "feat", "section": "Added"},
+                        {"type": "docs", "section": "Docs", "hidden": True},
+                        {"type": "test", "section": "Tests", "hidden": True},
+                        {"type": "ci", "section": "CI"},
+                        {"type": "chore", "section": "Chores", "hidden": True},
+                    ],
+                    "$comment-what-cuts-a-release": "kept",
+                }
+            }
+        }
+    )
     assert _config_hidden_types(planted) == {"chore", "docs", "test"}
     assert _config_hidden_types(planted) != set(RULES["hidden_types"])
     assert _config_missing_comments(planted, RULES["required_config_comments"]) == ["$comment-hidden-rule"]

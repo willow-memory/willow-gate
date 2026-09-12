@@ -1,5 +1,17 @@
 name: Tests
 
+# The fleet CI floor (fleet plan decision 5): a Linux matrix READ from
+# pyproject's Python classifiers; Windows on the floor and ceiling of that
+# same list; ruff pinned to an exact release, `check` and `format --check`;
+# and one aggregate job named `test` that fails unless every leg succeeded —
+# skipped and cancelled included, because a gate that passes on a leg that
+# never ran is not a gate. CodeQL (python + actions) runs from GitHub's
+# default setup on this repository, not from a file here.
+#
+# tests/test_release_wiring.py holds each of those to the tree: it lifts the
+# `versions` and `test` scripts out of their heredocs below and runs them,
+# and it reads the job ids, the `needs:` list and the ruff pin.
+
 on:
   push:
     # Both names: the fleet is split between `main` and `master`, and a
@@ -23,6 +35,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  versions:
+    # The Python matrix is read from pyproject.toml's
+    # `Programming Language :: Python :: 3.X` classifiers, so the versions
+    # this package claims to support and the versions CI runs cannot drift
+    # apart: adding a classifier adds a leg, and a leg cannot exist without
+    # its classifier. Sorted numerically, not as strings — "3.9" < "3.10".
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      all: ${{ steps.read.outputs.all }}
+      floor_ceiling: ${{ steps.read.outputs.floor_ceiling }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the Python matrix from pyproject's classifiers
+        id: read
+        run: |
+          python - <<'PY'
+          import json, os, re, sys
+
+          text = open("pyproject.toml", encoding="utf-8").read()
+          found = re.findall(r'"Programming Language :: Python :: (3\.\d+)"', text)
+          if not found:
+              print("::error::pyproject.toml declares no `Programming Language :: "
+                    "Python :: 3.X` classifiers, and the matrix is read from them.")
+              sys.exit(1)
+          versions = sorted(set(found), key=lambda v: tuple(int(p) for p in v.split(".")))
+          floor_ceiling = [versions[0], versions[-1]]
+          print(f"all:           {versions}")
+          print(f"floor_ceiling: {floor_ceiling}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"all={json.dumps(versions)}\n")
+              out.write(f"floor_ceiling={json.dumps(floor_ceiling)}\n")
+          PY
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -38,31 +85,31 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Install lint tools
-        run: pip install ruff==0.16.4 bandit
+      - name: Install lint tools (ruff pinned to an exact release)
+        # Exact, not `>=`: a floating ruff finds things on the PR that it did
+        # not find locally, or the other way round, and both read as "passes
+        # here, fails there". Bump the pin on purpose; CONTRIBUTING names it.
+        run: pip install ruff==0.16.7 bandit
 
-      - name: Ruff (enforced)
+      - name: Ruff check (enforced)
         run: ruff check src tests
+
+      - name: Ruff format (enforced)
+        run: ruff format --check src tests
 
       - name: Bandit (enforced — tree is clean, keep it that way)
         run: bandit -r src -ll -q
 
-  test-matrix:
+  linux:
+    needs: versions
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        # requires-python is >= 3.10 and pyproject declares no version
-        # classifiers, so there is no advertised range to match — the honest
-        # minimum is floor and ceiling, and the ceiling was never run here.
-        #
-        # Pull requests take floor and ceiling; push, schedule and dispatch
-        # take everything in between as well. Safe only because the required
-        # check is the aggregate `test` job below, never a matrix cell.
-        python-version: ${{ fromJSON(github.event_name == 'pull_request'
-          && '["3.10","3.13"]'
-          || '["3.10","3.11","3.12","3.13"]') }}
+        # Every minor the classifiers list, on every event. The old shape ran
+        # only floor and ceiling on pull requests; the floor says every leg.
+        python-version: ${{ fromJSON(needs.versions.outputs.all) }}
 
     steps:
       - uses: actions/checkout@v7
@@ -86,10 +133,63 @@ jobs:
           # Floor, not target: measured 94.1% on master. Ratchet up, never down.
           coverage report --fail-under=90
 
-  # Aggregate gate: branch protection requires a single check named "test"
-  # across the whole fleet. Green only when lint and every matrix leg are.
-  test:
-    needs: [test-matrix, lint]
-    runs-on: ubuntu-latest
+  windows:
+    needs: versions
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Floor and ceiling only: the Windows leg is for path separators,
+        # line endings, file modes and tempfile behaviour, which do not vary
+        # between Python minors the way the Linux legs' dependencies do.
+        python-version: ${{ fromJSON(needs.versions.outputs.floor_ceiling) }}
+
     steps:
-      - run: echo "lint and all matrix legs green"
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
+  # Aggregate gate: branch protection requires a single check named "test"
+  # across the whole fleet. It needs every leg above and runs even when one
+  # of them was skipped or cancelled — `if: always()` — so that it can FAIL
+  # on those: a needed job that did not run reports `skipped`, and without
+  # `always()` this job would be skipped too, which branch protection reads
+  # as "nothing to wait for". Success means every needed result is exactly
+  # `success`.
+  test:
+    needs: [versions, lint, linux, windows]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEEDS: ${{ toJSON(needs) }}
+    steps:
+      - name: Every leg must have succeeded — skipped and cancelled are failures
+        run: |
+          python - <<'PY'
+          import json, os, sys
+
+          needs = json.loads(os.environ["NEEDS"])
+          for job in sorted(needs):
+              print(f"{job:>10}: {needs[job]['result']}")
+          not_green = {job: r["result"] for job, r in needs.items() if r["result"] != "success"}
+          if not_green:
+              print(f"::error::not every leg succeeded: {not_green}. skipped and "
+                    "cancelled count as failures — a gate that passes on a leg "
+                    "that never ran is not a gate.")
+              sys.exit(1)
+          print("every leg green")
+          PY

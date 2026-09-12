@@ -15,6 +15,18 @@ requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Sean Campbell" }]
 dependencies = ["python-gnupg>=0.5", "cryptography>=41"]
+# The CI matrix is READ from these (.github/workflows/tests.yml, `versions`
+# job): every minor listed here runs on Linux, and the lowest and highest run
+# on Windows. Declared from requires-python — >=3.10 with no ceiling — as the
+# released minors from 3.10 up; none were declared before the fleet CI floor.
+# tests/test_release_wiring.py holds the workflow to this list.
+classifiers = [
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
 
 [project.optional-dependencies]
 dev = ["pytest"]
@@ -37,6 +49,14 @@ packages = ["src/willow_gate"]
 
 [tool.ruff]
 line-length = 120
+
+[tool.ruff.format]
+# friction_floor.py is the declared ORIGIN of Forge's vendored copy, and Forge
+# pins its own body against a named spelling-only divergence. Reformatting it
+# here would widen that divergence one hour before Wave 6 reconciles both
+# sides (docs/ideas.md item 19), so the formatter leaves this one file alone
+# until then. Lint still runs on it; only the formatter is held back.
+exclude = ["src/willow_gate/friction_floor.py"]
 
 [tool.ruff.lint.per-file-ignores]
 # The test suite deliberately uses compact one-line setup statements

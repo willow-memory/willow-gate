@@ -1,6 +1,7 @@
 """WillowGate logic tests. No network, no PGP required (require_pgp=False writes
 a plaintext dev ledger). A separate test exercises the real encrypted ledger and
 skips cleanly if gpg / python-gnupg are unavailable."""
+
 import hashlib
 import hmac
 import json
@@ -14,8 +15,7 @@ SEC = b"rookie-secret-0123456789abcdef01"
 
 
 def sign(secret, h):
-    canon = json.dumps({k: h[k] for k in _SIGNED_FIELDS},
-                       sort_keys=True, separators=(",", ":")).encode()
+    canon = json.dumps({k: h[k] for k in _SIGNED_FIELDS}, sort_keys=True, separators=(",", ":")).encode()
     return hmac.new(secret, canon, hashlib.sha256).hexdigest()
 
 
@@ -73,7 +73,7 @@ def test_checkout(gate):
 
 def test_forged_session_dict_cannot_elevate(gate):
     # Box audit willow-gate B1: authorize_tool trusted caller-supplied fields.
-    ok, _, s = gate.check_in(hdr(SEC))              # Rookie: read-only
+    ok, _, s = gate.check_in(hdr(SEC))  # Rookie: read-only
     assert ok and not gate.authorize_tool(s, "write")[0]
 
     # An attacker holds the returned dict and rewrites its trust fields.
@@ -139,16 +139,15 @@ def test_exiled_refused_at_check_in(gate):
     esec = b"exiled-secret-0123456789abcdef01"
     gate.register_agent("E0", esec, max_trust=0)
     with pytest.raises(GateError, match="entry denied"):
-        gate.check_in(hdr(esec, agent_id="E0", agent_name="ex",
-                          nonce="f" * 32, trust_level=0, tools=["read"]))
+        gate.check_in(hdr(esec, agent_id="E0", agent_name="ex", nonce="f" * 32, trust_level=0, tools=["read"]))
 
 
 def test_rookie_still_gets_a_read_only_session(gate):
     # The next level up is unaffected: Rookie enters and gets a read-only room.
     ok, _, s = gate.check_in(hdr(SEC, nonce="9" * 32))
     assert ok
-    assert gate.authorize_tool(s, "read")[0]        # read is universal
-    assert not gate.authorize_tool(s, "write")[0]   # but nothing else
+    assert gate.authorize_tool(s, "read")[0]  # read is universal
+    assert not gate.authorize_tool(s, "write")[0]  # but nothing else
 
 
 def test_nonce_replay_rejected(gate):
@@ -168,9 +167,17 @@ def test_nonce_replay_across_restart_rejected(gate, tmp_path):
 def test_steady_write_and_export_allowed(gate):
     ssec = b"steady-secret-0123456789abcdef01"
     gate.register_agent("S2", ssec, max_trust=2)
-    ok, _, s = gate.check_in(hdr(ssec, agent_id="S2", agent_name="steady",
-                                 nonce="2" * 32, trust_level=2,
-                                 tools=["read", "write"], pass_count=5))
+    ok, _, s = gate.check_in(
+        hdr(
+            ssec,
+            agent_id="S2",
+            agent_name="steady",
+            nonce="2" * 32,
+            trust_level=2,
+            tools=["read", "write"],
+            pass_count=5,
+        )
+    )
     assert ok
     assert gate.authorize_tool(s, "write")[0]
     assert gate.authorize_tool(s, "write", export=True)[0]
@@ -181,14 +188,13 @@ def test_pgp_ledger_round_trip(tmp_path):
     throwaway key cannot be generated (e.g. GNUPGHOME path too long)."""
     gnupg = pytest.importorskip("gnupg")
     import os
-    home = "/tmp/wg_test_gnupg"
+
+    home = str(tmp_path / "gnupg")
     os.makedirs(home, exist_ok=True)
     os.chmod(home, 0o700)
     os.environ["GNUPGHOME"] = home
     g = gnupg.GPG(gnupghome=home)
-    key = g.gen_key(g.gen_key_input(name_email="wg-test@local",
-                                    key_type="RSA", key_length=2048,
-                                    no_protection=True))
+    key = g.gen_key(g.gen_key_input(name_email="wg-test@local", key_type="RSA", key_length=2048, no_protection=True))
     if not key.fingerprint:
         pytest.skip("could not generate a throwaway PGP key in this environment")
     fpr = str(key.fingerprint)
@@ -220,9 +226,9 @@ SSEC = b"steady-secret-0123456789abcdef01"
 def steady_session(gate, nonce="2" * 32):
     """A checked-in Steady session (read+write granted, pass_count satisfied)."""
     gate.register_agent("S2", SSEC, max_trust=2)
-    _, _, s = gate.check_in(hdr(SSEC, agent_id="S2", agent_name="steady",
-                                nonce=nonce, trust_level=2,
-                                tools=["read", "write"], pass_count=5))
+    _, _, s = gate.check_in(
+        hdr(SSEC, agent_id="S2", agent_name="steady", nonce=nonce, trust_level=2, tools=["read", "write"], pass_count=5)
+    )
     return s
 
 
@@ -244,7 +250,7 @@ def test_checkout_declared_read_did_write_rejected(gate):
     """The flagship adversary: a read-only Rookie declares only `read` at entry,
     then presents an exit manifest claiming it used `write`. The exit tool is
     not in the session grant -> out-of-band tool use."""
-    _, _, s = gate.check_in(hdr(SEC))          # Rookie, tools=["read"]
+    _, _, s = gate.check_in(hdr(SEC))  # Rookie, tools=["read"]
     gate.authorize_tool(s, "read")
     e = hdr(SEC, timestamp=s["entry_ms"] + 1000, tools=["read", "write"])
     with pytest.raises(GateError, match="out-of-band"):
@@ -256,7 +262,7 @@ def test_checkout_rejects_tool_granted_but_never_authorized(gate):
     authorize_tool() during the session, so an exit manifest listing it is a
     call that bypassed the door."""
     s = steady_session(gate)
-    gate.authorize_tool(s, "read")             # read only — write never authorized
+    gate.authorize_tool(s, "read")  # read only — write never authorized
     e = steady_exit(s, tools=["read", "write"])
     with pytest.raises(GateError, match="unauthorized"):
         gate.check_out(s, e)
@@ -297,7 +303,7 @@ def test_checkout_immutable_field_tamper_rejected(gate):
 def test_checkout_exit_before_entry_rejected(gate):
     _, _, s = gate.check_in(hdr(SEC))
     gate.authorize_tool(s, "read")
-    e = hdr(SEC, timestamp=s["entry_ms"], tools=["read"])   # not strictly after
+    e = hdr(SEC, timestamp=s["entry_ms"], tools=["read"])  # not strictly after
     with pytest.raises(GateError, match="after entry"):
         gate.check_out(s, e)
 
@@ -305,7 +311,7 @@ def test_checkout_exit_before_entry_rejected(gate):
 def test_checkout_pass_count_decrease_rejected(gate):
     s = steady_session(gate)
     gate.authorize_tool(s, "read")
-    e = steady_exit(s, tools=["read"], pass_count=4)         # entry was 5
+    e = steady_exit(s, tools=["read"], pass_count=4)  # entry was 5
     with pytest.raises(GateError, match="pass_count"):
         gate.check_out(s, e)
 
@@ -320,6 +326,7 @@ def test_checkout_fail_count_decrease_rejected(gate):
 
 
 # ─── Check-in shape and gate coverage ────────────────────────────────────────
+
 
 def test_checkin_tools_exceed_grant_rejected(gate):
     """A Rookie declaring a tool above its ceiling (`execute`) is refused at the
@@ -349,9 +356,17 @@ def test_checkin_min_pass_count_gate(gate):
     a valid signature and an in-ceiling trust claim."""
     gate.register_agent("S2", SSEC, max_trust=2)
     with pytest.raises(GateError, match="pass_count"):
-        gate.check_in(hdr(SSEC, agent_id="S2", agent_name="steady",
-                          nonce="a1" + "0" * 30, trust_level=2,
-                          tools=["read", "write"], pass_count=0))
+        gate.check_in(
+            hdr(
+                SSEC,
+                agent_id="S2",
+                agent_name="steady",
+                nonce="a1" + "0" * 30,
+                trust_level=2,
+                tools=["read", "write"],
+                pass_count=0,
+            )
+        )
 
 
 def test_checkin_max_fail_count_gate(gate):
@@ -373,13 +388,14 @@ def test_checkin_unregistered_agent_rejected(gate):
 # tool must NEVER run, and an authorized run must reconcile at check-out with no
 # hand-threading.
 
+
 def test_harness_runs_an_allowed_tool_and_records_it(gate):
     _, _, s = gate.check_in(hdr(SEC))
     ran = []
     h = gate.bind_tools(s, [Tool("read", lambda: ran.append("read") or "page")])
     assert h.call("read") == "page"
     assert ran == ["read"]
-    assert "read" in s["tools_used"]        # recorded, so check_out will reconcile
+    assert "read" in s["tools_used"]  # recorded, so check_out will reconcile
 
 
 def test_harness_prevents_a_denied_tool_the_fn_never_runs(gate):
@@ -391,16 +407,16 @@ def test_harness_prevents_a_denied_tool_the_fn_never_runs(gate):
     h = gate.bind_tools(s, [Tool("write", lambda: ran.append("write"))])
     with pytest.raises(GateError):
         h.call("write")
-    assert ran == []                        # the tool never ran
-    assert "write" not in s["tools_used"]   # and nothing was recorded
+    assert ran == []  # the tool never ran
+    assert "write" not in s["tools_used"]  # and nothing was recorded
 
 
 def test_harness_prevents_export_from_a_non_export_level(gate):
-    _, _, s = gate.check_in(hdr(SEC))       # Rookie: write_export_allowed = False
+    _, _, s = gate.check_in(hdr(SEC))  # Rookie: write_export_allowed = False
     ran = []
     h = gate.bind_tools(s, [Tool("read", lambda: ran.append("x"), export=True)])
     with pytest.raises(GateError):
-        h.call("read")                      # read clears the grant, export does not
+        h.call("read")  # read clears the grant, export does not
     assert ran == []
 
 
@@ -422,7 +438,7 @@ def test_harness_read_is_universal_for_a_session_holder(gate):
 def test_harness_does_not_expose_the_callables(gate):
     _, _, s = gate.check_in(hdr(SEC))
     h = gate.bind_tools(s, [Tool("read", lambda: "secret-fn")])
-    assert h.tools == ("read",)             # names only — no un-gated path to fn
+    assert h.tools == ("read",)  # names only — no un-gated path to fn
 
 
 def test_harness_makes_checkout_reconcile_end_to_end(gate):
@@ -442,10 +458,10 @@ def test_harness_denied_tool_stays_out_of_the_exit_manifest(gate):
     never recorded as used, a later exit manifest claiming it is still caught as
     out-of-band — prevention and audit agree."""
     s = steady_session(gate)
-    h = gate.bind_tools(s, [Tool("read", lambda: 1)])   # write NOT bound
+    h = gate.bind_tools(s, [Tool("read", lambda: 1)])  # write NOT bound
     h.call("read")
     with pytest.raises(GateError):
-        h.call("write")                                 # unknown to this harness
+        h.call("write")  # unknown to this harness
     # an exit manifest that nonetheless claims write is rejected at check_out
     with pytest.raises(GateError, match="unauthorized"):
         gate.check_out(s, steady_exit(s, tools=["read", "write"]))

@@ -2,6 +2,7 @@
 
 Deterministic, no model, no network. Every test names the spec gate it proves.
 """
+
 import json
 
 import pytest
@@ -46,7 +47,7 @@ def test_tamper_breaks_chain():
     led._events[1]["tool"] = "exfiltrate"
     res = led.verify()
     assert not res.ok
-    assert res.at_seq == 2          # the first event whose prev_hash no longer matches
+    assert res.at_seq == 2  # the first event whose prev_hash no longer matches
     assert "chain" in res.reason
 
 
@@ -141,7 +142,7 @@ def test_checkout_catches_declared_read_then_wrote():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read"], "trust_level": 1})
     session_record_action(led, "s1", "willow", "read")
-    session_record_action(led, "s1", "willow", "write")   # undeclared
+    session_record_action(led, "s1", "willow", "write")  # undeclared
     recon = session_check_out(led, "s1")
 
     assert recon.reconciled is False
@@ -174,8 +175,8 @@ def test_checkout_feeds_trust_ladder_fail_count():
     session_record_action(led, "s1", "willow", "write")
     session_record_action(led, "s1", "willow", "execute")
     recon = session_check_out(led, "s1")
-    assert recon.fail_count_delta == 2                 # write + execute undeclared
-    assert recon.exit_fail_count(3) == 5               # entry 3 -> exit 5
+    assert recon.fail_count_delta == 2  # write + execute undeclared
+    assert recon.exit_fail_count(3) == 5  # entry 3 -> exit 5
 
 
 def test_checkout_requires_a_checkin():
@@ -189,8 +190,8 @@ def test_sessions_are_reconciled_independently():
     led = CustodyLedger()
     session_check_in(led, "a", "willow", {"tools": ["read"]})
     session_check_in(led, "b", "hanuman", {"tools": ["read", "write"]})
-    session_record_action(led, "a", "willow", "write")     # a: undeclared
-    session_record_action(led, "b", "hanuman", "write")    # b: declared
+    session_record_action(led, "a", "willow", "write")  # a: undeclared
+    session_record_action(led, "b", "hanuman", "write")  # b: declared
     ra = session_check_out(led, "a")
     rb = session_check_out(led, "b")
     assert ra.reconciled is False and ra.mismatches == ["write"]
@@ -199,6 +200,7 @@ def test_sessions_are_reconciled_independently():
 
 def test_declared_accepts_header_list_or_string():
     from willow_gate.custody import _declared_tools
+
     assert _declared_tools({"tools": ["read", "write"]}) == ["read", "write"]
     assert _declared_tools({"tools": "read, write"}) == ["read", "write"]
     assert _declared_tools(["write", "read", "read"]) == ["read", "write"]
@@ -249,7 +251,7 @@ def test_file_lineage_queryable_and_chained():
 def test_file_write_autochains_to_last_hash():
     led = CustodyLedger()
     file_create(led, "f", "willow", ch("v1"))
-    ev = file_write(led, "f", "willow", ch("v2"))          # no explicit parent
+    ev = file_write(led, "f", "willow", ch("v2"))  # no explicit parent
     assert ev["parent_content_hash"] == ch("v1")
     assert last_content_hash(led, "f") == ch("v2")
 
@@ -265,9 +267,9 @@ def test_out_of_band_edit_shows_as_capture_gap():
     assert gap["kind"] == KIND_CAPTURE_GAP
     assert gap["expected_content_hash"] == ch("v2")
     assert gap["observed_content_hash"] == ch("v_external")
-    assert led.events()[-1]["kind"] == KIND_CAPTURE_GAP    # durable
+    assert led.events()[-1]["kind"] == KIND_CAPTURE_GAP  # durable
     assert lineage_has_gaps(led, "f")
-    assert led.verify().ok                                 # the gap is a legit entry
+    assert led.verify().ok  # the gap is a legit entry
     # idempotent: re-observing the same hash does not re-flag
     assert detect_capture_gap(led, "f", ch("v_external")) is None
     # and a legitimate write chains from the acknowledged break
@@ -281,8 +283,8 @@ def test_capture_gap_none_when_consistent():
     file_create(led, "f", "willow", ch("v1"))
     file_write(led, "f", "willow", ch("v2"))
     before = len(led)
-    assert detect_capture_gap(led, "f", ch("v2")) is None   # matches last recorded
-    assert len(led) == before                               # nothing written
+    assert detect_capture_gap(led, "f", ch("v2")) is None  # matches last recorded
+    assert len(led) == before  # nothing written
 
 
 def test_lineages_are_independent():
@@ -300,12 +302,11 @@ def test_file_gate_cross_redacts_live_secret():
     led = CustodyLedger()
     file_create(led, "f", "willow", ch("v1"))
     with pytest.raises(SecretRefused):
-        file_gate_cross(led, "f", "willow",
-                        {"name": "github", "auth_ref": "github_pat_" + "b" * 30})
+        file_gate_cross(led, "f", "willow", {"name": "github", "auth_ref": "github_pat_" + "b" * 30})
     # a crossing recorded under a credential *id* is fine
-    ev = file_gate_cross(led, "f", "willow",
-                         {"name": "jeles", "auth_ref": "cred-7", "direction": "in"},
-                         content_hash=ch("received"))
+    ev = file_gate_cross(
+        led, "f", "willow", {"name": "jeles", "auth_ref": "cred-7", "direction": "in"}, content_hash=ch("received")
+    )
     assert ev["gate"]["auth_ref"] == "cred-7"
     assert led.verify().ok
 
@@ -332,7 +333,7 @@ def _ch(s):
 def test_h5_folds_file_write_carrying_session_id():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read"]})
-    file_write(led, "f", "willow", _ch("v1"), session_id="s1")   # a write, not via session_record_action
+    file_write(led, "f", "willow", _ch("v1"), session_id="s1")  # a write, not via session_record_action
     recon = session_check_out(led, "s1")
     assert recon.reconciled is False and "write" in recon.mismatches
 
@@ -358,7 +359,7 @@ def test_h5_is_case_insensitive():
     session_check_in(led, "s1", "willow", {"tools": ["Read", "WRITE"]})
     session_record_action(led, "s1", "willow", "read")
     session_record_action(led, "s1", "willow", "Write")
-    assert session_check_out(led, "s1").reconciled is True   # case cannot evade or false-flag
+    assert session_check_out(led, "s1").reconciled is True  # case cannot evade or false-flag
 
 
 # HARDEN-2: redaction covers plaintext field-name secrets and secret keys.
@@ -367,7 +368,7 @@ def test_redaction_refuses_plaintext_field_secrets():
     for bad in ({"password": "hunter2"}, {"api_key": "letmein"}, {"client_secret": "x"}):
         with pytest.raises(SecretRefused):
             led.append(dict(bad, kind=_SA, actor="x"))
-    assert len(led) == 0   # nothing written
+    assert len(led) == 0  # nothing written
 
 
 def test_redaction_refuses_secret_as_dict_key():
@@ -378,9 +379,16 @@ def test_redaction_refuses_secret_as_dict_key():
 
 def test_redaction_allows_credential_ids_and_hashes():
     led = CustodyLedger()
-    led.append({"kind": KIND_FILE_GATE_CROSS, "actor": "x", "lineage_id": "f",
-                "gate": {"auth_ref": "cred-7"}, "content_hash": _ch("v"),
-                "private_key_id": "pk-1"})       # ids/refs/hashes are not secrets
+    led.append(
+        {
+            "kind": KIND_FILE_GATE_CROSS,
+            "actor": "x",
+            "lineage_id": "f",
+            "gate": {"auth_ref": "cred-7"},
+            "content_hash": _ch("v"),
+            "private_key_id": "pk-1",
+        }
+    )  # ids/refs/hashes are not secrets
     assert led.verify().ok
 
 
@@ -388,16 +396,20 @@ def test_redaction_allows_credential_ids_and_hashes():
 def test_canon_portable_ascii_nfc_and_fixed_point():
     ev = {"kind": _SA, "actor": "wíllow", "tool": "café", "note": None}
     b = _canon(ev)
-    assert all(byte < 128 for byte in b)     # pure ASCII -> serializer-portable
+    assert all(byte < 128 for byte in b)  # pure ASCII -> serializer-portable
     assert b == b'{"actor":"w\\u00edllow","kind":"session.action","tool":"caf\\u00e9"}'
-    assert _canon(json.loads(b.decode())) == b               # fixed point
+    assert _canon(json.loads(b.decode())) == b  # fixed point
     # NFC: combining form collapses to the precomposed form
     assert _canon({"kind": _SA, "tool": "café"}) == _canon({"kind": _SA, "tool": "café"})
 
 
 def test_canon_rejects_non_string_keys_and_floats():
-    for bad in ({"kind": _SA, "m": {1: "a"}}, {"kind": _SA, "m": {True: "a"}},
-                {"kind": _SA, "n": 1.5}, {"kind": _SA, "n": float("nan")}):
+    for bad in (
+        {"kind": _SA, "m": {1: "a"}},
+        {"kind": _SA, "m": {True: "a"}},
+        {"kind": _SA, "n": 1.5},
+        {"kind": _SA, "n": float("nan")},
+    ):
         with pytest.raises(ValueError):
             _canon(bad)
     # and via append() it fails closed (nothing written)
@@ -414,7 +426,8 @@ def test_load_fails_closed_on_tamper(tmp_path):
     for t in ("read", "write", "grep"):
         session_record_action(led, "s", "willow", t, ts="2026-07-11T00:00:00Z")
     lines = p.read_text().splitlines()
-    row = json.loads(lines[1]); row["tool"] = "exfiltrate"        # tamper, do NOT re-derive
+    row = json.loads(lines[1])
+    row["tool"] = "exfiltrate"  # tamper, do NOT re-derive
     lines[1] = json.dumps(row)
     p.write_text("\n".join(lines) + "\n")
     with pytest.raises(_ChainError):
@@ -423,7 +436,9 @@ def test_load_fails_closed_on_tamper(tmp_path):
 
 def test_load_fails_closed_on_corrupt_line(tmp_path):
     p = tmp_path / "c.jsonl"
-    p.write_text('{"kind":"session.action","actor":"x","seq":0,"ledger_prev_hash":"' + ("0" * 64) + '"}\n{ broken json\n')
+    p.write_text(
+        '{"kind":"session.action","actor":"x","seq":0,"ledger_prev_hash":"' + ("0" * 64) + '"}\n{ broken json\n'
+    )
     with pytest.raises(_ChainError):
         CustodyLedger.load(str(p))
 
@@ -438,16 +453,16 @@ def test_double_checkout_is_idempotent_not_raising():
     r1 = session_check_out(led, "s1")
     assert r1.already_closed is False and r1.mismatches == ["write"]
     n = len(led)
-    r2 = session_check_out(led, "s1")            # no raise
+    r2 = session_check_out(led, "s1")  # no raise
     assert r2.already_closed is True
     assert r2.mismatches == ["write"] and r2.reconciled is False
-    assert len(led) == n                          # no duplicate session.checkout
+    assert len(led) == n  # no duplicate session.checkout
 
 
 # HARDEN-6: a write-first (un-provenanced) lineage does not verify.
 def test_write_first_lineage_has_no_origin():
     led = CustodyLedger()
-    file_write(led, "f", "willow", _ch("v1"))     # no file_create first
+    file_write(led, "f", "willow", _ch("v1"))  # no file_create first
     res = verify_lineage(led, "f")
     assert not res.ok and "origin" in res.reason
 
@@ -457,11 +472,11 @@ def test_unknown_kind_and_bad_ts_refused():
     led = CustodyLedger()
     with pytest.raises(ValueError):
         led.append({"kind": "bogus", "actor": "x"})
-    with pytest.raises(ValueError):                       # naive (no tz)
+    with pytest.raises(ValueError):  # naive (no tz)
         led.append({"kind": _SA, "actor": "x"}, ts="2026-07-11T00:00:00")
-    with pytest.raises(ValueError):                       # garbage
+    with pytest.raises(ValueError):  # garbage
         led.append({"kind": _SA, "actor": "x", "ts": "not-a-time"})
-    led.append({"kind": _SA, "actor": "x"}, ts="2026-07-11T00:00:00+00:00")   # good
+    led.append({"kind": _SA, "actor": "x"}, ts="2026-07-11T00:00:00+00:00")  # good
     assert led.verify().ok
 
 
@@ -474,15 +489,15 @@ def test_rederivation_forgery_passes_tier1_verify_documented_limit():
     led._events[1]["tool"] = "exfiltrate"
     for i in range(2, len(led._events)):
         led._events[i]["ledger_prev_hash"] = _eh(led._events[i - 1])
-    assert led.verify().ok is True          # KNOWN LIMIT: only Tier-4 head-pinning catches this
+    assert led.verify().ok is True  # KNOWN LIMIT: only Tier-4 head-pinning catches this
 
 
 def test_tail_truncation_passes_tier1_verify_documented_limit():
     led = CustodyLedger()
     for t in ("read", "write", "grep"):
         session_record_action(led, "s", "willow", t)
-    led._events.pop()                       # drop the tail
-    assert led.verify().ok is True          # KNOWN LIMIT: nothing pins the head at Tier 1
+    led._events.pop()  # drop the tail
+    assert led.verify().ok is True  # KNOWN LIMIT: nothing pins the head at Tier 1
 
 
 # ============================================================================
@@ -497,7 +512,9 @@ def _write_valid_chain(path, events):
     prev = GENESIS
     lines = []
     for i, e in enumerate(events):
-        ev = dict(e); ev["seq"] = i; ev["ledger_prev_hash"] = prev
+        ev = dict(e)
+        ev["seq"] = i
+        ev["ledger_prev_hash"] = prev
         prev = event_hash(ev)
         lines.append(json.dumps(ev))
     path.write_text("\n".join(lines) + "\n")
@@ -516,9 +533,9 @@ def test_forged_checkout_cannot_deny_reconciliation():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read"]})
     session_record_action(led, "s1", "willow", "write")
-    with pytest.raises(ValueError):                      # forge blocked at the door
+    with pytest.raises(ValueError):  # forge blocked at the door
         led.append({"kind": "session.checkout", "session_id": "s1", "reconciled": True})
-    recon = session_check_out(led, "s1")                 # real reconciliation still runs
+    recon = session_check_out(led, "s1")  # real reconciliation still runs
     assert recon.reconciled is False and "write" in recon.mismatches
 
 
@@ -538,10 +555,10 @@ def test_session_id_reuse_reconciles_new_window():
 # R2-2: load() re-runs ALL fail-closed gates, not just the chain.
 def test_load_rejects_smuggled_secret_kind_and_ts(tmp_path):
     for events in (
-        [{"kind": "session.action", "actor": "x", "password": "hunter2"}],   # secret
-        [{"kind": "TOTALLY_BOGUS", "actor": "x"}],                            # illegal kind
-        [{"kind": "session.action", "actor": "x", "ts": "not-a-time"}],       # bad ts
-        [{"kind": "session.action", "actor": "x", "ts": 12345}],              # non-string ts
+        [{"kind": "session.action", "actor": "x", "password": "hunter2"}],  # secret
+        [{"kind": "TOTALLY_BOGUS", "actor": "x"}],  # illegal kind
+        [{"kind": "session.action", "actor": "x", "ts": "not-a-time"}],  # bad ts
+        [{"kind": "session.action", "actor": "x", "ts": 12345}],  # non-string ts
     ):
         p = tmp_path / "c.jsonl"
         _write_valid_chain(p, events)
@@ -569,8 +586,7 @@ def test_redaction_no_false_positive_on_credential_ids():
 def test_redaction_high_signal_credential_field_names():
     # High-signal names AND any *_token (R4-2 restored the suffix) are refused...
     led = CustodyLedger()
-    for bad in ({"bearer": "abc"}, {"session_token": "abc"}, {"access_token": "abc"},
-                {"x_token": "abc"}):
+    for bad in ({"bearer": "abc"}, {"session_token": "abc"}, {"access_token": "abc"}, {"x_token": "abc"}):
         with pytest.raises(SecretRefused):
             led.append(dict(bad, kind="session.action", actor="x"))
     # ...while the bare `token`/`cookie` names remain non-triggers (too ambiguous).
@@ -593,13 +609,13 @@ def test_persist_is_ascii_and_reloads(tmp_path):
     led = CustodyLedger(path=str(p))
     led.append({"kind": "session.action", "actor": "willow", "tool": "café"}, ts="2026-07-11T00:00:00Z")
     raw = p.read_bytes()
-    assert all(b < 128 for b in raw)                     # file uses the ASCII canonical policy
+    assert all(b < 128 for b in raw)  # file uses the ASCII canonical policy
     assert CustodyLedger.load(str(p)).verify().ok
 
 
 def test_declared_non_iterable_fails_closed():
     led = CustodyLedger()
-    session_check_in(led, "s1", "willow", 5)             # malformed declared header
+    session_check_in(led, "s1", "willow", 5)  # malformed declared header
     with pytest.raises(ValueError):
         session_check_out(led, "s1")
 
@@ -608,7 +624,7 @@ def test_sig_must_be_a_string():
     led = CustodyLedger()
     with pytest.raises(ValueError):
         led.append({"kind": "session.action", "actor": "x", "sig": 123})
-    led.append({"kind": "session.action", "actor": "x", "sig": "deadbeef"})   # ok
+    led.append({"kind": "session.action", "actor": "x", "sig": "deadbeef"})  # ok
     assert led.verify().ok
 
 
@@ -616,14 +632,15 @@ def test_sig_must_be_a_string():
 # Round-3 hardening — pass-3 findings
 # ============================================================================
 
+
 # R3-1: a second check-in inside an OPEN window cannot wipe an undeclared capability.
 def test_double_checkin_cannot_erase_evidence():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read"]})
-    session_record_action(led, "s1", "willow", "write")     # undeclared
+    session_record_action(led, "s1", "willow", "write")  # undeclared
     session_check_in(led, "s1", "willow", {"tools": ["read", "write"]})  # 2nd checkin, no checkout
     r = session_check_out(led, "s1")
-    assert r.reconciled is False and r.mismatches == ["write"]   # neither wiped nor re-broadened
+    assert r.reconciled is False and r.mismatches == ["write"]  # neither wiped nor re-broadened
 
 
 # R3-1: a reused session_id (check-in AFTER a checkout) still opens a fresh window.
@@ -641,14 +658,17 @@ def test_reuse_after_checkout_still_opens_new_window():
 # R3-2: a forged session.checkout in a LOADED file can neither deny nor mask.
 def test_forged_checkout_in_loaded_file_cannot_deny_or_mask(tmp_path):
     p = tmp_path / "c.jsonl"
-    _write_valid_chain(p, [
-        {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
-        {"kind": "session.checkout", "session_id": "s1", "actor": "w", "reconciled": True, "mismatches": []},
-    ])
-    led = CustodyLedger.load(str(p))                      # loads (self-consistent chain)
+    _write_valid_chain(
+        p,
+        [
+            {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
+            {"kind": "session.checkout", "session_id": "s1", "actor": "w", "reconciled": True, "mismatches": []},
+        ],
+    )
+    led = CustodyLedger.load(str(p))  # loads (self-consistent chain)
     led.append({"kind": "session.action", "session_id": "s1", "actor": "w", "tool": "write"})
-    r = session_check_out(led, "s1")                      # no raise
-    assert r.reconciled is False and r.mismatches == ["write"]   # truth recomputed, not masked
+    r = session_check_out(led, "s1")  # no raise
+    assert r.reconciled is False and r.mismatches == ["write"]  # truth recomputed, not masked
     # the real write is new activity AFTER the forged checkout -> it is fed, not
     # suppressed (R6 F2): already_closed is False here.
     assert r.already_closed is False
@@ -660,8 +680,9 @@ def test_redaction_no_false_positive_on_benign_token_fields():
     led.append({"kind": "session.action", "actor": "x", "next_token": "page2"})
     led.append({"kind": "session.action", "actor": "x", "continuation_token": "abc"})
     led.append({"kind": "session.action", "actor": "x", "cookie": "theme=dark"})
-    led.append({"kind": KIND_FILE_GATE_CROSS, "actor": "x", "lineage_id": "f",
-                "gate": {"name": "gh", "token": "issue-1234"}})
+    led.append(
+        {"kind": KIND_FILE_GATE_CROSS, "actor": "x", "lineage_id": "f", "gate": {"name": "gh", "token": "issue-1234"}}
+    )
     assert led.verify().ok and len(led) == 4
     # the high-signal names still fire
     for bad in ({"session_token": "s"}, {"access_token": "a"}, {"bearer": "b"}):
@@ -674,9 +695,9 @@ def test_egress_does_not_excuse_checkout():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read", "egress"]})
     file_gate_cross(led, "f1", "willow", {"name": "jeles", "auth_ref": "c"}, session_id="s1")
-    _file_checkout(led, "f2", "willow", session_id="s1")   # a DIFFERENT file leaving custody
+    _file_checkout(led, "f2", "willow", session_id="s1")  # a DIFFERENT file leaving custody
     r = session_check_out(led, "s1")
-    assert r.reconciled is False and r.mismatches == ["checkout"]   # egress declared, checkout not
+    assert r.reconciled is False and r.mismatches == ["checkout"]  # egress declared, checkout not
 
 
 # R3-3: load() raises ChainError (not raw ValueError) on an uncanonicalizable leaf,
@@ -685,8 +706,9 @@ def test_load_raises_chainerror_on_float_and_bad_sig(tmp_path):
     # a float leaf can't even be hashed, so write it raw; load()'s verify() must
     # surface it as ChainError, not let the ValueError escape.
     p = tmp_path / "c.jsonl"
-    p.write_text(json.dumps({"kind": "session.action", "actor": "x", "n": 1.5,
-                             "seq": 0, "ledger_prev_hash": GENESIS}) + "\n")
+    p.write_text(
+        json.dumps({"kind": "session.action", "actor": "x", "n": 1.5, "seq": 0, "ledger_prev_hash": GENESIS}) + "\n"
+    )
     with pytest.raises(_ChainError):
         CustodyLedger.load(str(p))
     # non-string sig hashes fine (sig is excluded) but must be re-checked on load
@@ -710,8 +732,8 @@ from willow_gate.custody import (
 # R4-1 (F3): a capability exercised BEFORE the first check-in is still caught.
 def test_pre_checkin_action_is_folded():
     led = CustodyLedger()
-    session_record_action(led, "s1", "willow", "write")     # capability first
-    session_check_in(led, "s1", "willow", {"tools": ["read"]})   # then narrow declaration
+    session_record_action(led, "s1", "willow", "write")  # capability first
+    session_check_in(led, "s1", "willow", {"tools": ["read"]})  # then narrow declaration
     r = session_check_out(led, "s1")
     assert r.reconciled is False and r.mismatches == ["write"]
 
@@ -732,7 +754,7 @@ def test_star_token_secrets_caught_cursors_allowed():
 def test_untagged_capability_not_reconciled_documented_limit():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read"]})
-    _file_checkout(led, "f", "willow", session_id=None)     # no session tag
+    _file_checkout(led, "f", "willow", session_id=None)  # no session tag
     r = session_check_out(led, "s1")
     # KNOWN LIMIT: reconciliation can't attribute an untagged event; the Tier-3b
     # hook must inject session_id. Asserted so the boundary is explicit.
@@ -742,12 +764,15 @@ def test_untagged_capability_not_reconciled_documented_limit():
 # R4-4 (F1): forged checkout+checkin in a loaded file MASKS — DOCUMENTED LIMIT.
 def test_forged_checkout_checkin_masks_documented_limit(tmp_path):
     p = tmp_path / "c.jsonl"
-    _write_valid_chain(p, [
-        {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
-        {"kind": "session.action", "session_id": "s1", "actor": "w", "tool": "write"},   # undeclared
-        {"kind": "session.checkout", "session_id": "s1", "actor": "w", "reconciled": True, "mismatches": []},
-        {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
-    ])
+    _write_valid_chain(
+        p,
+        [
+            {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
+            {"kind": "session.action", "session_id": "s1", "actor": "w", "tool": "write"},  # undeclared
+            {"kind": "session.checkout", "session_id": "s1", "actor": "w", "reconciled": True, "mismatches": []},
+            {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
+        ],
+    )
     led = CustodyLedger.load(str(p))
     r = session_check_out(led, "s1")
     # KNOWN LIMIT (Tier-4): the forged pair rolls the window forward; the real
@@ -758,11 +783,14 @@ def test_forged_checkout_checkin_masks_documented_limit(tmp_path):
 # R4-4 (F4): a forged checkout spoofs already_closed on a genuine mismatch — LIMIT.
 def test_forged_checkout_spoofs_already_closed_documented_limit(tmp_path):
     p = tmp_path / "c.jsonl"
-    _write_valid_chain(p, [
-        {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
-        {"kind": "session.action", "session_id": "s1", "actor": "w", "tool": "write"},
-        {"kind": "session.checkout", "session_id": "s1", "actor": "w", "reconciled": True, "mismatches": []},
-    ])
+    _write_valid_chain(
+        p,
+        [
+            {"kind": "session.checkin", "session_id": "s1", "actor": "w", "declared": {"tools": ["read"]}},
+            {"kind": "session.action", "session_id": "s1", "actor": "w", "tool": "write"},
+            {"kind": "session.checkout", "session_id": "s1", "actor": "w", "reconciled": True, "mismatches": []},
+        ],
+    )
     led = CustodyLedger.load(str(p))
     r = session_check_out(led, "s1")
     # recon VALUES are still true (round-3 win) ...
@@ -776,13 +804,26 @@ def test_forged_checkout_spoofs_already_closed_documented_limit(tmp_path):
 def test_forged_capture_gap_launders_lineage_documented_limit(tmp_path):
     p = tmp_path / "c.jsonl"
     Z = _ch("attacker-content")
-    _write_valid_chain(p, [
-        {"kind": _FC, "lineage_id": "f", "actor": "w", "content_hash": _ch("v1")},
-        {"kind": KIND_CAPTURE_GAP, "lineage_id": "f", "actor": "w",
-         "expected_content_hash": _ch("v1"), "observed_content_hash": Z},
-        {"kind": KIND_FILE_WRITE, "lineage_id": "f", "actor": "w",
-         "content_hash": _ch("v2"), "parent_content_hash": Z},
-    ])
+    _write_valid_chain(
+        p,
+        [
+            {"kind": _FC, "lineage_id": "f", "actor": "w", "content_hash": _ch("v1")},
+            {
+                "kind": KIND_CAPTURE_GAP,
+                "lineage_id": "f",
+                "actor": "w",
+                "expected_content_hash": _ch("v1"),
+                "observed_content_hash": Z,
+            },
+            {
+                "kind": KIND_FILE_WRITE,
+                "lineage_id": "f",
+                "actor": "w",
+                "content_hash": _ch("v2"),
+                "parent_content_hash": Z,
+            },
+        ],
+    )
     led = CustodyLedger.load(str(p))
     # KNOWN LIMIT (Tier-4): a write parented on attacker content Z chains cleanly
     # because the forged capture_gap made Z the baseline.
@@ -806,9 +847,9 @@ def test_dead_zone_capability_is_not_wiped():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read"]})
     session_record_action(led, "s1", "willow", "read")
-    session_check_out(led, "s1")                        # window 1 closes clean
-    session_record_action(led, "s1", "willow", "write") # dead-zone undeclared write
-    session_check_in(led, "s1", "willow", {"tools": ["read"]})   # re-check-in
+    session_check_out(led, "s1")  # window 1 closes clean
+    session_record_action(led, "s1", "willow", "write")  # dead-zone undeclared write
+    session_check_in(led, "s1", "willow", {"tools": ["read"]})  # re-check-in
     r = session_check_out(led, "s1")
     assert r.reconciled is False and r.mismatches == ["write"]
 
@@ -816,9 +857,9 @@ def test_dead_zone_capability_is_not_wiped():
 def test_trailing_dead_zone_capability_is_caught():
     led = CustodyLedger()
     session_check_in(led, "s1", "willow", {"tools": ["read"]})
-    session_check_out(led, "s1")                        # closes
-    session_record_action(led, "s1", "willow", "write") # trailing, no new check-in
-    r = session_check_out(led, "s1")                    # re-check_out surfaces it
+    session_check_out(led, "s1")  # closes
+    session_record_action(led, "s1", "willow", "write")  # trailing, no new check-in
+    r = session_check_out(led, "s1")  # re-check_out surfaces it
     assert r.reconciled is False and "write" in r.mismatches
 
 
@@ -826,8 +867,8 @@ def test_trailing_dead_zone_capability_is_caught():
 def test_read_does_not_relaunder_lineage():
     led = CustodyLedger()
     file_create(led, "f", "willow", _ch("v1"))
-    _file_read(led, "f", "willow", _ch("v_evil"))       # out-of-band change seen as a read
-    assert _last_ch(led, "f") == _ch("v1")              # baseline NOT advanced
+    _file_read(led, "f", "willow", _ch("v_evil"))  # out-of-band change seen as a read
+    assert _last_ch(led, "f") == _ch("v1")  # baseline NOT advanced
     res = verify_lineage(led, "f")
     assert not res.ok and "unexplained" in res.reason
     # a consistent read is fine
@@ -872,8 +913,8 @@ def test_distinct_sessions_do_not_merge():
     session_record_action(led, "alice", "alice", "read")
     session_check_in(led, "mallory", "mallory", {"tools": ["write"]})
     session_record_action(led, "mallory", "mallory", "write")
-    assert session_check_out(led, "alice").reconciled is True     # not broken by mallory
-    assert session_check_out(led, "mallory").mismatches == []     # declared its own write
+    assert session_check_out(led, "alice").reconciled is True  # not broken by mallory
+    assert session_check_out(led, "mallory").mismatches == []  # declared its own write
 
 
 # R6-2 (F2): trailing dead-zone caps emit a durable checkout AND aren't suppressed.
@@ -881,14 +922,14 @@ def test_trailing_orphans_emit_and_feed():
     led = CustodyLedger()
     session_check_in(led, "s", "willow", {"tools": ["read"]})
     session_record_action(led, "s", "willow", "read")
-    session_check_out(led, "s")                                   # clean close (#1)
+    session_check_out(led, "s")  # clean close (#1)
     n1 = sum(1 for e in led.events() if e["kind"] == KIND_SESSION_CHECKOUT)
-    session_record_action(led, "s", "willow", "write")            # trailing undeclared
+    session_record_action(led, "s", "willow", "write")  # trailing undeclared
     r = session_check_out(led, "s")
     n2 = sum(1 for e in led.events() if e["kind"] == KIND_SESSION_CHECKOUT)
     assert r.mismatches == ["write"]
-    assert r.already_closed is False        # NEW activity -> ladder must be fed
-    assert n2 == n1 + 1                      # a durable record was emitted
+    assert r.already_closed is False  # NEW activity -> ladder must be fed
+    assert n2 == n1 + 1  # a durable record was emitted
     # a further re-check_out with nothing new is idempotent again
     r2 = session_check_out(led, "s")
     n3 = sum(1 for e in led.events() if e["kind"] == KIND_SESSION_CHECKOUT)
@@ -919,9 +960,9 @@ def test_read_of_historical_version_ok():
     led = CustodyLedger()
     file_create(led, "f", "willow", _ch("v1"))
     file_write(led, "f", "willow", _ch("v2"))
-    _file_read(led, "f", "willow", _ch("v1"))        # cached/older copy — legitimate
+    _file_read(led, "f", "willow", _ch("v1"))  # cached/older copy — legitimate
     assert verify_lineage(led, "f").ok
-    _file_read(led, "f", "willow", _ch("v_never"))   # never-held — unexplained
+    _file_read(led, "f", "willow", _ch("v_never"))  # never-held — unexplained
     assert not verify_lineage(led, "f").ok
 
 
@@ -942,6 +983,7 @@ from willow_gate.custody import (
 
 class _HmacSigner:
     """A deterministic, dependency-free signer so the Tier-4 gates run everywhere."""
+
     def __init__(self, key=b"operator-key"):
         self.key = key
 
@@ -977,8 +1019,8 @@ def test_checkpoint_catches_rederivation_forgery():
     led._events[1]["tool"] = "exfiltrate"
     for i in range(2, len(led._events)):
         led._events[i]["ledger_prev_hash"] = event_hash(led._events[i - 1])
-    assert led.verify().ok                          # Tier 1 IS fooled (documented limit)
-    assert not verify_checkpoint(led, cp, s).ok     # Tier 4 is NOT fooled
+    assert led.verify().ok  # Tier 1 IS fooled (documented limit)
+    assert not verify_checkpoint(led, cp, s).ok  # Tier 4 is NOT fooled
 
 
 def test_checkpoint_wrong_key_fails():
@@ -992,8 +1034,7 @@ def test_checkpoint_wrong_key_fails():
 def test_checkpoint_is_system_only():
     led = CustodyLedger()
     with pytest.raises(ValueError):
-        led.append({"kind": KIND_CHECKPOINT, "covers_to_seq": 0,
-                    "head_hash": "0" * 64, "sig": "x"})
+        led.append({"kind": KIND_CHECKPOINT, "covers_to_seq": 0, "head_hash": "0" * 64, "sig": "x"})
 
 
 # GATE: a sidecar verifies OFFLINE and is labeled weaker-than-ledger.
@@ -1004,9 +1045,9 @@ def test_sidecar_verifies_offline_and_is_weaker():
     s = _HmacSigner()
     sc = export_sidecar(led, s, lineage_id="f")
     assert sc["authenticity_only"] is True
-    res = verify_sidecar(sc, s)                     # no ledger passed — offline
+    res = verify_sidecar(sc, s)  # no ledger passed — offline
     assert res.ok and "completeness" in res.reason.lower()
-    sc["events"][0]["content_hash"] = _ch("evil")   # tamper a shown event
+    sc["events"][0]["content_hash"] = _ch("evil")  # tamper a shown event
     assert not verify_sidecar(sc, s).ok
 
 
@@ -1019,24 +1060,25 @@ def test_sidecar_honesty_label_is_signed():
     sc = export_sidecar(led, s, lineage_id="f")
     assert verify_sidecar(sc, s).ok
 
-    flipped = dict(sc); flipped["authenticity_only"] = False
-    assert not verify_sidecar(flipped, s).ok         # flipping the label breaks the sig
+    flipped = dict(sc)
+    flipped["authenticity_only"] = False
+    assert not verify_sidecar(flipped, s).ok  # flipping the label breaks the sig
 
     stripped = {k: v for k, v in sc.items() if k != "authenticity_only"}
-    assert not verify_sidecar(stripped, s).ok         # stripping the label breaks the sig
+    assert not verify_sidecar(stripped, s).ok  # stripping the label breaks the sig
 
 
 # GPG-backed — skips cleanly if gpg / python-gnupg unavailable (repo pattern).
-def test_checkpoint_with_real_gpg():
+def test_checkpoint_with_real_gpg(tmp_path):
     gnupg = pytest.importorskip("gnupg")
     import os
-    home = "/tmp/wg_cp_gpg"
+
+    home = str(tmp_path / "gnupg")
     os.makedirs(home, exist_ok=True)
     os.chmod(home, 0o700)
     os.environ["GNUPGHOME"] = home
     g = gnupg.GPG(gnupghome=home)
-    key = g.gen_key(g.gen_key_input(name_email="wg-cp@local", key_type="RSA",
-                                    key_length=2048, no_protection=True))
+    key = g.gen_key(g.gen_key_input(name_email="wg-cp@local", key_type="RSA", key_length=2048, no_protection=True))
     if not getattr(key, "fingerprint", ""):
         pytest.skip("could not generate a throwaway PGP key in this environment")
     signer = GpgSigner(str(key.fingerprint), gnupghome=home)
@@ -1044,5 +1086,5 @@ def test_checkpoint_with_real_gpg():
     session_record_action(led, "s", "willow", "read")
     cp = checkpoint(led, signer)
     assert verify_checkpoint(led, cp, signer).ok
-    led._events[0]["tool"] = "exfiltrate"           # in-place tamper of the sealed event
+    led._events[0]["tool"] = "exfiltrate"  # in-place tamper of the sealed event
     assert not verify_checkpoint(led, cp, signer).ok

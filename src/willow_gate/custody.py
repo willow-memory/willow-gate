@@ -42,6 +42,7 @@ Honest limits, stated up front because the rule is don't overclaim:
 Signing (PGP checkpoints) is Tier 4 and is not here. Session check-in/check-out
 reconciliation (H5) is Tier 2 and is not here. This is the spine only.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -68,14 +69,23 @@ KIND_SESSION_CHECKIN = "session.checkin"
 KIND_SESSION_ACTION = "session.action"
 KIND_SESSION_CHECKOUT = "session.checkout"
 KIND_CAPTURE_GAP = "capture_gap"
-KIND_CHECKPOINT = "checkpoint"   # Tier 4: a signed head hash
+KIND_CHECKPOINT = "checkpoint"  # Tier 4: a signed head hash
 
 # The closed set of legal kinds. append() refuses anything else.
-_KINDS = frozenset({
-    KIND_FILE_CREATE, KIND_FILE_READ, KIND_FILE_WRITE, KIND_FILE_GATE_CROSS,
-    KIND_FILE_CHECKOUT, KIND_SESSION_CHECKIN, KIND_SESSION_ACTION,
-    KIND_SESSION_CHECKOUT, KIND_CAPTURE_GAP, KIND_CHECKPOINT,
-})
+_KINDS = frozenset(
+    {
+        KIND_FILE_CREATE,
+        KIND_FILE_READ,
+        KIND_FILE_WRITE,
+        KIND_FILE_GATE_CROSS,
+        KIND_FILE_CHECKOUT,
+        KIND_SESSION_CHECKIN,
+        KIND_SESSION_ACTION,
+        KIND_SESSION_CHECKOUT,
+        KIND_CAPTURE_GAP,
+        KIND_CHECKPOINT,
+    }
+)
 
 # Derived records the ledger concludes for itself — NOT receipts a caller may
 # supply. The public append() refuses them; only check_out()/detect_capture_gap()
@@ -92,7 +102,7 @@ _CAPABILITY_BY_KIND = {
     KIND_FILE_WRITE: "write",
     KIND_FILE_READ: "read",
     KIND_FILE_GATE_CROSS: "egress",
-    KIND_FILE_CHECKOUT: "checkout",   # distinct: declaring egress must not excuse a checkout
+    KIND_FILE_CHECKOUT: "checkout",  # distinct: declaring egress must not excuse a checkout
 }
 
 # Fields the writer owns. A caller may not set these; the ledger assigns them.
@@ -115,13 +125,13 @@ class ChainError(Exception):
 # hex content hash, which is why generic entropy heuristics are deliberately
 # absent at Tier 1 (see module docstring).
 _SECRET_PATTERNS = (
-    re.compile(r"AKIA[0-9A-Z]{16}"),                       # AWS access key id
-    re.compile(r"ghp_[A-Za-z0-9]{36}"),                    # GitHub PAT (classic)
-    re.compile(r"gh[ousr]_[A-Za-z0-9]{36}"),               # GitHub oauth/server/user
-    re.compile(r"github_pat_[A-Za-z0-9_]{22,}"),           # GitHub fine-grained PAT
-    re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"),           # Slack token
-    re.compile(r"AIza[0-9A-Za-z_\-]{35}"),                 # Google API key
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),     # PEM private key
+    re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS access key id
+    re.compile(r"ghp_[A-Za-z0-9]{36}"),  # GitHub PAT (classic)
+    re.compile(r"gh[ousr]_[A-Za-z0-9]{36}"),  # GitHub oauth/server/user
+    re.compile(r"github_pat_[A-Za-z0-9_]{22,}"),  # GitHub fine-grained PAT
+    re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"),  # Slack token
+    re.compile(r"AIza[0-9A-Za-z_\-]{35}"),  # Google API key
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),  # PEM private key
     re.compile(r"eyJ[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{6,}"),  # JWT
 )
 
@@ -132,11 +142,24 @@ _SECRET_PATTERNS = (
 # often holds an id). A plaintext secret under a bare `secret` field is caught only
 # if its value has a credential shape. Any field ending `_token` is also treated as
 # secret-bearing (session_token, auth_token, …); use `token_id`/`token_ref` for ids.
-_SECRET_FIELD_NAMES = frozenset({
-    "password", "passwd", "passphrase", "secret_key", "api_key", "apikey",
-    "apisecret", "client_secret", "private_key", "privatekey", "access_token",
-    "auth_token", "session_token", "bearer",
-})
+_SECRET_FIELD_NAMES = frozenset(
+    {
+        "password",
+        "passwd",
+        "passphrase",
+        "secret_key",
+        "api_key",
+        "apikey",
+        "apisecret",
+        "client_secret",
+        "private_key",
+        "privatekey",
+        "access_token",
+        "auth_token",
+        "session_token",
+        "bearer",
+    }
+)
 # Suffixes that mark a field as a reference/identifier, NOT a raw secret — these
 # are exempt from the field-name rule (e.g. auth_ref, content_hash, *_id).
 _ID_SUFFIXES = ("_ref", "_id", "_hash", "_fingerprint", "_name")
@@ -149,13 +172,18 @@ def looks_like_secret(value: str) -> bool:
 
 # Pagination cursors etc. that end in `_token` but are NOT secrets — exempt from
 # the `*_token` rule so they don't false-positive.
-_BENIGN_TOKEN_FIELDS = frozenset({
-    "next_token", "page_token", "next_page_token", "continuation_token",
-})
+_BENIGN_TOKEN_FIELDS = frozenset(
+    {
+        "next_token",
+        "page_token",
+        "next_page_token",
+        "continuation_token",
+    }
+)
 
 
 def _is_secret_field(key: str) -> bool:
-    k = key.strip().lower()   # strip so "access_token " (trailing space) can't dodge
+    k = key.strip().lower()  # strip so "access_token " (trailing space) can't dodge
     if k.endswith(_ID_SUFFIXES):
         return False
     if k in _SECRET_FIELD_NAMES:
@@ -245,9 +273,7 @@ def canonicalize(event: dict) -> bytes:
     bytes — the property the hash chain and any Tier-4 signature depend on."""
     body = {k: v for k, v in event.items() if k not in _UNSIGNED}
     body = _canonical_obj(body)
-    return json.dumps(
-        body, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    ).encode("utf-8")
+    return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
 def event_hash(event: dict) -> str:
@@ -393,12 +419,10 @@ class CustodyLedger:
                     raise ChainError(f"corrupt ledger line {n}: {e}")
         try:
             res = led.verify()
-        except ValueError as e:   # an uncanonicalizable loaded leaf (float, bad key)
+        except ValueError as e:  # an uncanonicalizable loaded leaf (float, bad key)
             raise ChainError(f"ledger has an uncanonicalizable event on load: {e}")
         if not res.ok:
-            raise ChainError(
-                f"ledger failed verification on load: {res.reason} at seq {res.at_seq}"
-            )
+            raise ChainError(f"ledger failed verification on load: {res.reason} at seq {res.at_seq}")
         # Re-apply the live fail-closed gates — the file is data, not authority.
         # A hand-built valid chain must not smuggle a secret, an illegal kind, a
         # bad ts, or a non-string sig that append() would have refused.
@@ -439,7 +463,7 @@ class Reconciliation:
     observed: list
     mismatches: list
     fail_count_delta: int
-    already_closed: bool = False   # this window already had a checkout; do not re-feed the ladder
+    already_closed: bool = False  # this window already had a checkout; do not re-feed the ladder
 
     def __bool__(self) -> bool:
         return self.reconciled
@@ -477,20 +501,25 @@ def _declared_tools(declared: Any) -> list:
     return sorted({str(t).strip().lower() for t in tools if str(t).strip()})
 
 
-def session_check_in(ledger: CustodyLedger, session_id: str, actor: str,
-                     declared: Any, *, ts: str | None = None) -> dict:
+def session_check_in(
+    ledger: CustodyLedger, session_id: str, actor: str, declared: Any, *, ts: str | None = None
+) -> dict:
     """Record the declared intent header at the start of a session."""
     _check_session_id(session_id)
-    return ledger.append({
-        "kind": KIND_SESSION_CHECKIN,
-        "session_id": session_id,
-        "actor": actor,
-        "declared": declared,
-    }, ts=ts)
+    return ledger.append(
+        {
+            "kind": KIND_SESSION_CHECKIN,
+            "session_id": session_id,
+            "actor": actor,
+            "declared": declared,
+        },
+        ts=ts,
+    )
 
 
-def session_record_action(ledger: CustodyLedger, session_id: str, actor: str,
-                          tool: str, *, ts: str | None = None, **extra) -> dict:
+def session_record_action(
+    ledger: CustodyLedger, session_id: str, actor: str, tool: str, *, ts: str | None = None, **extra
+) -> dict:
     """Record one capability actually exercised — a receipt to reconcile against."""
     _check_session_id(session_id)
     ev = {
@@ -503,8 +532,7 @@ def session_record_action(ledger: CustodyLedger, session_id: str, actor: str,
     return ledger.append(ev, ts=ts)
 
 
-def session_check_out(ledger: CustodyLedger, session_id: str, *,
-                      ts: str | None = None) -> Reconciliation:
+def session_check_out(ledger: CustodyLedger, session_id: str, *, ts: str | None = None) -> Reconciliation:
     """Reconcile a session's declared intent against its observed actions, append
     a durable session.checkout, and return the reconciliation. A capability
     exercised but not declared is a mismatch and a fail_count increment."""
@@ -515,7 +543,7 @@ def session_check_out(ledger: CustodyLedger, session_id: str, *,
     _check_session_id(session_id)
     declared_header = None
     observed: set = set()
-    orphans: set = set()   # capabilities exercised in the DEAD ZONE (while closed)
+    orphans: set = set()  # capabilities exercised in the DEAD ZONE (while closed)
     closed = False
     for ev in ledger.events():
         evsid = ev.get("session_id")
@@ -579,15 +607,18 @@ def session_check_out(ledger: CustodyLedger, session_id: str, *,
     # records against a file-writing adversary is a Tier-4 (signed-head) property,
     # not achievable here — see docs/custody-ledger-spec.md "The Tier-4 boundary".
     if (not closed) or has_new_orphans:
-        ledger._append({           # system-only kind — privileged path
-            "kind": KIND_SESSION_CHECKOUT,
-            "session_id": session_id,
-            "reconciled": recon.reconciled,
-            "declared": recon.declared,
-            "observed": recon.observed,
-            "mismatches": recon.mismatches,
-            "fail_count_delta": recon.fail_count_delta,
-        }, ts=ts)
+        ledger._append(
+            {  # system-only kind — privileged path
+                "kind": KIND_SESSION_CHECKOUT,
+                "session_id": session_id,
+                "reconciled": recon.reconciled,
+                "declared": recon.declared,
+                "observed": recon.observed,
+                "mismatches": recon.mismatches,
+                "fail_count_delta": recon.fail_count_delta,
+            },
+            ts=ts,
+        )
     return recon
 
 
@@ -643,66 +674,123 @@ def last_content_hash(ledger: CustodyLedger, lineage_id: str) -> str | None:
     return h
 
 
-def file_create(ledger: CustodyLedger, lineage_id: str, actor: str,
-                content_hash: str, *, path: str | None = None,
-                session_id: str | None = None, ts: str | None = None) -> dict:
+def file_create(
+    ledger: CustodyLedger,
+    lineage_id: str,
+    actor: str,
+    content_hash: str,
+    *,
+    path: str | None = None,
+    session_id: str | None = None,
+    ts: str | None = None,
+) -> dict:
     _check_session_id(session_id, allow_none=True)
-    return ledger.append({
-        "kind": KIND_FILE_CREATE, "lineage_id": lineage_id, "actor": actor,
-        "content_hash": content_hash, "path": path, "session_id": session_id,
-    }, ts=ts)
+    return ledger.append(
+        {
+            "kind": KIND_FILE_CREATE,
+            "lineage_id": lineage_id,
+            "actor": actor,
+            "content_hash": content_hash,
+            "path": path,
+            "session_id": session_id,
+        },
+        ts=ts,
+    )
 
 
-def file_read(ledger: CustodyLedger, lineage_id: str, actor: str,
-              content_hash: str, *, session_id: str | None = None,
-              ts: str | None = None) -> dict:
+def file_read(
+    ledger: CustodyLedger,
+    lineage_id: str,
+    actor: str,
+    content_hash: str,
+    *,
+    session_id: str | None = None,
+    ts: str | None = None,
+) -> dict:
     _check_session_id(session_id, allow_none=True)
-    return ledger.append({
-        "kind": KIND_FILE_READ, "lineage_id": lineage_id, "actor": actor,
-        "content_hash": content_hash, "session_id": session_id,
-    }, ts=ts)
+    return ledger.append(
+        {
+            "kind": KIND_FILE_READ,
+            "lineage_id": lineage_id,
+            "actor": actor,
+            "content_hash": content_hash,
+            "session_id": session_id,
+        },
+        ts=ts,
+    )
 
 
-def file_write(ledger: CustodyLedger, lineage_id: str, actor: str,
-               new_content_hash: str, *, parent_content_hash: str | None = None,
-               diff_stat: dict | None = None, session_id: str | None = None,
-               ts: str | None = None) -> dict:
+def file_write(
+    ledger: CustodyLedger,
+    lineage_id: str,
+    actor: str,
+    new_content_hash: str,
+    *,
+    parent_content_hash: str | None = None,
+    diff_stat: dict | None = None,
+    session_id: str | None = None,
+    ts: str | None = None,
+) -> dict:
     """Record a new version. If parent is not given it auto-chains to the last
     recorded content hash for the lineage. Pass session_id to tie the write to a
     session so H5 check-out reconciles it."""
     _check_session_id(session_id, allow_none=True)
     if parent_content_hash is None:
         parent_content_hash = last_content_hash(ledger, lineage_id)
-    return ledger.append({
-        "kind": KIND_FILE_WRITE, "lineage_id": lineage_id, "actor": actor,
-        "content_hash": new_content_hash,
-        "parent_content_hash": parent_content_hash,
-        "diff_stat": diff_stat, "session_id": session_id,
-    }, ts=ts)
+    return ledger.append(
+        {
+            "kind": KIND_FILE_WRITE,
+            "lineage_id": lineage_id,
+            "actor": actor,
+            "content_hash": new_content_hash,
+            "parent_content_hash": parent_content_hash,
+            "diff_stat": diff_stat,
+            "session_id": session_id,
+        },
+        ts=ts,
+    )
 
 
-def file_gate_cross(ledger: CustodyLedger, lineage_id: str, actor: str,
-                    gate: dict, *, content_hash: str | None = None,
-                    session_id: str | None = None,
-                    ts: str | None = None) -> dict:
+def file_gate_cross(
+    ledger: CustodyLedger,
+    lineage_id: str,
+    actor: str,
+    gate: dict,
+    *,
+    content_hash: str | None = None,
+    session_id: str | None = None,
+    ts: str | None = None,
+) -> dict:
     """Record a file crossing an external gate (the received-file crossing). The
     ledger's fail-closed redaction refuses a live secret carried in `gate`. Pass
     session_id so H5 reconciles the egress."""
     _check_session_id(session_id, allow_none=True)
-    return ledger.append({
-        "kind": KIND_FILE_GATE_CROSS, "lineage_id": lineage_id, "actor": actor,
-        "gate": gate, "content_hash": content_hash, "session_id": session_id,
-    }, ts=ts)
+    return ledger.append(
+        {
+            "kind": KIND_FILE_GATE_CROSS,
+            "lineage_id": lineage_id,
+            "actor": actor,
+            "gate": gate,
+            "content_hash": content_hash,
+            "session_id": session_id,
+        },
+        ts=ts,
+    )
 
 
-def file_checkout(ledger: CustodyLedger, lineage_id: str, actor: str,
-                  *, session_id: str | None = None,
-                  ts: str | None = None) -> dict:
+def file_checkout(
+    ledger: CustodyLedger, lineage_id: str, actor: str, *, session_id: str | None = None, ts: str | None = None
+) -> dict:
     _check_session_id(session_id, allow_none=True)
-    return ledger.append({
-        "kind": KIND_FILE_CHECKOUT, "lineage_id": lineage_id, "actor": actor,
-        "session_id": session_id,
-    }, ts=ts)
+    return ledger.append(
+        {
+            "kind": KIND_FILE_CHECKOUT,
+            "lineage_id": lineage_id,
+            "actor": actor,
+            "session_id": session_id,
+        },
+        ts=ts,
+    )
 
 
 def file_lineage(ledger: CustodyLedger, lineage_id: str) -> list:
@@ -717,13 +805,13 @@ def verify_lineage(ledger: CustodyLedger, lineage_id: str) -> VerifyResult:
     break."""
     evs = _lineage_events(ledger, lineage_id)
     if not evs:
-        return VerifyResult(True, "ok")   # empty lineage: nothing to verify
+        return VerifyResult(True, "ok")  # empty lineage: nothing to verify
     # A lineage must have an origin — a create, or a gate-cross that received it.
     # A write-first lineage is un-provenanced and must not pass.
     if evs[0].get("kind") not in (KIND_FILE_CREATE, KIND_FILE_GATE_CROSS):
         return VerifyResult(False, "lineage has no origin", evs[0].get("seq"))
     effective: str | None = None
-    known: set = set()   # every content hash this lineage has legitimately held
+    known: set = set()  # every content hash this lineage has legitimately held
     for i, e in enumerate(evs):
         k = e.get("kind")
         if k in (KIND_FILE_CREATE, KIND_FILE_GATE_CROSS):
@@ -758,13 +846,17 @@ def verify_lineage(ledger: CustodyLedger, lineage_id: str) -> VerifyResult:
 
 
 def lineage_has_gaps(ledger: CustodyLedger, lineage_id: str) -> bool:
-    return any(e.get("kind") == KIND_CAPTURE_GAP
-               for e in _lineage_events(ledger, lineage_id))
+    return any(e.get("kind") == KIND_CAPTURE_GAP for e in _lineage_events(ledger, lineage_id))
 
 
-def detect_capture_gap(ledger: CustodyLedger, lineage_id: str,
-                       observed_content_hash: str, *, actor: str = "observer",
-                       ts: str | None = None) -> dict | None:
+def detect_capture_gap(
+    ledger: CustodyLedger,
+    lineage_id: str,
+    observed_content_hash: str,
+    *,
+    actor: str = "observer",
+    ts: str | None = None,
+) -> dict | None:
     """Compare an observed file hash to the last recorded one. If they differ, no
     recorded write explains the change (a write to `observed` would have moved the
     recorded hash), so it is an out-of-band edit: append and return a capture_gap.
@@ -773,12 +865,17 @@ def detect_capture_gap(ledger: CustodyLedger, lineage_id: str,
     expected = last_content_hash(ledger, lineage_id)
     if expected is None or observed_content_hash == expected:
         return None
-    return ledger._append({    # system-only kind — privileged path
-        "kind": KIND_CAPTURE_GAP, "lineage_id": lineage_id, "actor": actor,
-        "expected_content_hash": expected,
-        "observed_content_hash": observed_content_hash,
-        "note": "observed content hash has no explaining write event",
-    }, ts=ts)
+    return ledger._append(
+        {  # system-only kind — privileged path
+            "kind": KIND_CAPTURE_GAP,
+            "lineage_id": lineage_id,
+            "actor": actor,
+            "expected_content_hash": expected,
+            "observed_content_hash": observed_content_hash,
+            "note": "observed content hash has no explaining write event",
+        },
+        ts=ts,
+    )
 
 
 # --- Tier 4: sealing (signed checkpoints + portable sidecar) ------------------
@@ -814,8 +911,7 @@ def _sig_str(sig: Any) -> str:
         try:
             return bytes(sig).decode("utf-8")
         except UnicodeDecodeError:
-            raise ValueError(
-                "signer.sign() must return str or text bytes; got non-text bytes")
+            raise ValueError("signer.sign() must return str or text bytes; got non-text bytes")
     return str(sig)
 
 
@@ -826,12 +922,15 @@ def checkpoint(ledger: CustodyLedger, signer: Any, *, ts: str | None = None) -> 
     covers = len(ledger) - 1
     head = ledger.head_hash
     sig = _sig_str(signer.sign(head.encode("utf-8")))
-    return ledger._append({
-        "kind": KIND_CHECKPOINT,
-        "covers_to_seq": covers,
-        "head_hash": head,
-        "sig": sig,
-    }, ts=ts)
+    return ledger._append(
+        {
+            "kind": KIND_CHECKPOINT,
+            "covers_to_seq": covers,
+            "head_hash": head,
+            "sig": sig,
+        },
+        ts=ts,
+    )
 
 
 def verify_checkpoint(ledger: CustodyLedger, checkpoint_event: dict, signer: Any) -> VerifyResult:
@@ -859,9 +958,9 @@ def verify_checkpoint(ledger: CustodyLedger, checkpoint_event: dict, signer: Any
     return VerifyResult(True, "ok", covers)
 
 
-def export_sidecar(ledger: CustodyLedger, signer: Any, *,
-                   lineage_id: str | None = None,
-                   session_id: str | None = None) -> dict:
+def export_sidecar(
+    ledger: CustodyLedger, signer: Any, *, lineage_id: str | None = None, session_id: str | None = None
+) -> dict:
     """A portable, signed slice for offline use. It proves the shown events are
     AUTHENTIC (signed) — NOT that none were omitted. Explicitly weaker than the
     ledger; the returned dict carries `authenticity_only: True` to say so."""
@@ -876,8 +975,7 @@ def export_sidecar(ledger: CustodyLedger, signer: Any, *,
     # authenticity_only lives INSIDE the signed payload so the weaker-than-ledger
     # honesty label cannot be stripped or flipped while keeping a valid signature
     # (canonicalize() excludes only `sig`, so every other field is signed).
-    payload = {"subject": subject, "anchor_head": ledger.head_hash, "events": events,
-               "authenticity_only": True}
+    payload = {"subject": subject, "anchor_head": ledger.head_hash, "events": events, "authenticity_only": True}
     sig = _sig_str(signer.sign(canonicalize(payload)))
     return {**payload, "sig": sig}
 
@@ -904,9 +1002,9 @@ class GpgSigner:
     """Production signer over python-gnupg detached signatures. Imports gnupg lazily
     so the rest of the module stays stdlib-only."""
 
-    def __init__(self, fingerprint: str, *, gnupghome: str | None = None,
-                 passphrase: str | None = None) -> None:
+    def __init__(self, fingerprint: str, *, gnupghome: str | None = None, passphrase: str | None = None) -> None:
         import gnupg  # optional dependency, required only for this signer
+
         self._g = gnupg.GPG(gnupghome=gnupghome) if gnupghome else gnupg.GPG()
         self._fpr = fingerprint
         self._pass = passphrase
@@ -920,6 +1018,7 @@ class GpgSigner:
     def verify(self, data: bytes, sig: str) -> bool:
         import os
         import tempfile
+
         fd, p = tempfile.mkstemp(suffix=".asc")
         try:
             os.write(fd, sig.encode("utf-8") if isinstance(sig, str) else sig)
