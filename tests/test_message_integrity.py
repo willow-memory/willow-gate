@@ -11,6 +11,7 @@ verification grants no forging power. No test here touches HMAC.
 """
 
 import json
+import os
 
 import pytest
 
@@ -141,6 +142,13 @@ def test_replay_survives_verifier_restart(tmp_path, hanuman_keys):
 
 
 # ── key custody ───────────────────────────────────────────────────────────────
+@pytest.mark.xfail(
+    os.name == "nt",
+    strict=True,
+    reason="mode bits do not exist on NT: os.open's 0o600 only clears the read-only flag, so the "
+    "private key is not custody-protected on Windows (docs/ideas.md item 24). Strict: the day "
+    "the writer sets a DACL, this must start passing and be un-marked.",
+)
 def test_private_key_file_is_0600(hanuman_keys):
     assert (hanuman_keys.private_path.stat().st_mode & 0o777) == 0o600
 

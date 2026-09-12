@@ -1069,11 +1069,11 @@ def test_sidecar_honesty_label_is_signed():
 
 
 # GPG-backed — skips cleanly if gpg / python-gnupg unavailable (repo pattern).
-def test_checkpoint_with_real_gpg():
+def test_checkpoint_with_real_gpg(tmp_path):
     gnupg = pytest.importorskip("gnupg")
     import os
 
-    home = "/tmp/wg_cp_gpg"
+    home = str(tmp_path / "gnupg")
     os.makedirs(home, exist_ok=True)
     os.chmod(home, 0o700)
     os.environ["GNUPGHOME"] = home
