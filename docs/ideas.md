@@ -65,6 +65,7 @@ the README.
 17. ✅ **shipped**: keep this numbered pile at `docs/ideas.md`, in the reconciler's form, converted from `hardening-plan.md` and the docs' open items, and validated by `reconciler run --repo ./ --doc docs/ideas.md --validate` (Wave 3, E3-piles). The plan stays as the reasoning and points here.
 18. ✅ **shipped**: adopt `Idea-Id` commit trailers (fleet CONVENTION, decision-2026-09-11): a commit that lands an item here carries `Idea-Id: willow-ideas-<num>` in its trailer block, generated with `reconciler id --grep`, never typed; `.github/workflows/trailers.yml` runs `reconciler verify` on every PR so a dangling id (worse than none: rule 2a asserts LANDED from it) fails CI; CONTRIBUTING names the convention; `tests/test_fleet_conventions.py`'s pile rule bites (Wave 3, E3-trailers).
 19. `src/willow_gate/friction_floor.py` is the declared ORIGIN of Forge's vendored copy; Forge pins its own body with a named spelling-only divergence (`re.I` vs `re.IGNORECASE`, typing spellings). Reconcile both sides in one hour (Wave 6): one body, one origin, the divergence either adopted here or dropped there.
+23. The fleet CI floor (fleet plan decision 5, Wave 4, C4-tests-yml / C4-codeql): a Linux job whose Python matrix is read from `pyproject.toml`'s `Programming Language :: Python :: 3.X` classifiers (declared from `requires-python` first, since none were); a Windows job on the floor and ceiling only; a lint job with ruff pinned to an exact release running `ruff check` and `ruff format --check` (the tree formatted first, in its own commit, rather than the config loosened); CodeQL on python and actions; and an aggregate job named `test` that needs every leg, runs `if: always()`, and fails when any needed result is not `success`, skipped and cancelled included. Each rule held by `tests/test_release_wiring.py` with a plant.
 
 ## E. Hygiene
 
@@ -74,3 +75,9 @@ Recorded in #38's "seen, not touched" (Wave 2); none of them changes what
 20. `release-please.yml` runs `python tools/changelog_dedup.py` in two steps and this repo has no `tools/` directory. Harmless by accident: a missing script exits 2, which the step reads as "warn and carry on", so the changelog-rebuild and release-body-sync steps are dead code here. Port the tool from willow-mcp or drop the steps (`ci:`).
 21. `release-please-config.json`'s `$comment-versioning` is jeles's text (`willow_institutional_search`, `jeles/_egress.py`, "99 commits and 8 tags"), and `$comment-initial-version` says "remove after v0.1.0 is cut" when v0.1.0 was cut in #36. Make the config's comments true of this repo (`chore:`).
 22. `.coverage` (SQLite) is committed at the repo root and absent from `.gitignore`; it changes on every local test run. Untrack it and ignore it (`chore:`).
+
+## F. Portability
+
+Found by reading the code ahead of the fleet CI floor's Windows leg; recorded here rather than silently skipped.
+
+24. Private-key custody in `src/willow_gate/message_integrity.py` rests on `os.open(..., 0o600)`: correct on POSIX, and on Windows the mode argument only clears the read-only flag, so the key file is not custody-protected there (`st_mode & 0o777` reads 0o666). `tests/test_message_integrity.py::test_private_key_file_is_0600` is a strict expected-failure on NT until the writer sets a DACL (owner-only) or refuses to write a private key on a platform where it cannot protect it.
