@@ -45,6 +45,8 @@ RELEASE_PLEASE = ".github/workflows/release-please.yml"
 PR_TITLE = ".github/workflows/pr-title.yml"
 RELEASE_CONFIG = "release-please-config.json"
 PYPROJECT = "pyproject.toml"
+PILE = "docs/ideas.md"
+TRAILERS = ".github/workflows/trailers.yml"
 
 #: The line that hands the merge to GitHub. Its presence is what makes the
 #: title guard mandatory rather than nice-to-have.
@@ -82,6 +84,22 @@ def _missing_title_guard(root: Path) -> list[str]:
     if not _arms_automerge(root):
         return []
     return [] if (root / PR_TITLE).exists() else [PR_TITLE]
+
+
+def _missing_trailers_gate(root: Path) -> list[str]:
+    """`[TRAILERS]` if this tree keeps a numbered idea pile and runs no
+    `reconciler verify` on it; `[]` when the gate is there, or when there is
+    no pile and so no join key for a dangling trailer to forge."""
+    if not (root / PILE).exists():
+        return []
+    return [] if (root / TRAILERS).exists() else [TRAILERS]
+
+
+def _verify_repo_argument(workflow_text: str) -> str | None:
+    """The `--repo` argument the trailers workflow hands `reconciler verify`,
+    or None when it runs no verify at all."""
+    match = re.search(r"reconciler verify --repo (\S+)", workflow_text)
+    return match.group(1) if match else None
 
 
 def _embedded_script(workflow_text: str) -> str:
@@ -194,6 +212,23 @@ def test_this_tree_arms_automerge_and_so_carries_the_title_guard():
     premise ever stops holding this test should be revisited, not deleted."""
     assert _arms_automerge(REPO_ROOT), f"{RELEASE_PLEASE} no longer arms auto-merge; re-read this file's docstring"
     assert _missing_title_guard(REPO_ROOT) == []
+
+
+def test_this_tree_keeps_a_pile_and_so_carries_the_trailers_gate():
+    """Wave 3 cut `docs/ideas.md`; from then on a commit trailer can name an
+    item, a typo'd one asserts a false LANDED, and `reconciler verify` in CI
+    is what catches it. The workflow must also hand the reconciler a path it
+    can resolve: `--repo .` is read as a bare repo name (no separator) and
+    errors before reading anything, which would pass nothing and fail every
+    PR; `./` is a path."""
+    assert (REPO_ROOT / PILE).exists(), f"{PILE} is this repo's numbered pile; re-read this file's docstring"
+    assert _missing_trailers_gate(REPO_ROOT) == []
+    workflow = (REPO_ROOT / TRAILERS).read_text(encoding="utf-8")
+    assert 'pip install "willow-reconciler>=0.6.0"' in workflow, "installed from PyPI, pinned to the conventions release"
+    repo_arg = _verify_repo_argument(workflow)
+    assert repo_arg is not None, "trailers.yml must actually run `reconciler verify`"
+    assert "/" in repo_arg, f"--repo {repo_arg!r} is a bare name to the reconciler, not a path"
+    assert "fetch-depth: 0" in workflow, "a shallow clone hides every trailer but the last commit's"
 
 
 def test_the_guards_packaged_constant_agrees_with_pyproject(guard_script):
@@ -351,6 +386,19 @@ def test_the_guard_check_fires_on_a_planted_tree_that_arms_automerge_without_it(
     assert _missing_title_guard(_tree(tmp_path, "guarded", arms=True, files=(PR_TITLE,))) == []
     assert _missing_title_guard(_tree(tmp_path, "manual", arms=False)) == []
     assert _missing_title_guard(tmp_path / "no-such-tree") == [], "no workflow at all arms nothing"
+
+
+def test_the_trailers_check_fires_on_a_planted_tree_with_a_pile_and_no_gate(tmp_path):
+    """Planted: a tree with `docs/ideas.md` and no trailers.yml — this repo
+    between the pile commit and the gate commit — must be reported; a gated
+    tree and a pile-less tree must not. And the `--repo` reader must tell a
+    bare `.` from a path."""
+    assert _missing_trailers_gate(_tree(tmp_path, "piled", arms=False, files=(PILE,))) == [TRAILERS]
+    assert _missing_trailers_gate(_tree(tmp_path, "gated", arms=False, files=(PILE, TRAILERS))) == []
+    assert _missing_trailers_gate(_tree(tmp_path, "pileless", arms=False)) == []
+    assert _verify_repo_argument("run: reconciler verify --repo . --doc docs/ideas.md\n") == "."
+    assert _verify_repo_argument("run: reconciler verify --repo ./ --doc docs/ideas.md\n") == "./"
+    assert _verify_repo_argument("run: echo no verify here\n") is None
 
 
 def test_the_packaged_check_catches_a_planted_constant_copied_from_another_repo():

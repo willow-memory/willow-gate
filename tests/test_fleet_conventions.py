@@ -30,12 +30,13 @@ What each published rule means here, on this tree:
   about the document, so the check reads both places.
 * `contributing_must_name_test_command` — CONTRIBUTING.md names
   `TEST_COMMAND`, the command CI runs under coverage.
-* `required_when_pile_exists` — this repo keeps no numbered idea pile (no
-  IDEAS.md, no docs/ideas.md), so the rule is vacuous here and the test
-  below says so rather than passing silently; the plant proves the helper
-  would bite the day a pile appears.
-* `idea_id_trailer` — the join key the pile rule exists to verify; with no
-  pile there is nothing to join, and it is read but not checked.
+* `required_when_pile_exists` — this repo keeps its numbered idea pile at
+  `docs/ideas.md` (Wave 3, E3-piles), so `.github/workflows/trailers.yml`
+  is required and present. Wave 2 declared this rule vacuous here because
+  there was no pile; the same test now bites, and the plant still proves the
+  helper fires on a tree with a pile and no gate.
+* `idea_id_trailer` — the join key the pile rule exists to verify. CONTRIBUTING
+  names it, and the trailers workflow runs `reconciler verify` on it.
 
 Every helper that reads the tree is shown to fire on a planted violation in
 this same file — `tests/test_scans_fire.py`'s house rule.
@@ -65,9 +66,11 @@ RELEASE_PLEASE = ".github/workflows/release-please.yml"
 RELEASE_CONFIG = "release-please-config.json"
 CONTRIBUTING = "CONTRIBUTING.md"
 
-#: The spellings a numbered idea pile takes across the fleet. None exists
-#: here; the real-tree test asserts that rather than assuming it.
-PILE_CANDIDATES = ("docs/ideas.md", "IDEAS.md")
+#: Where this repo keeps its numbered idea pile (Wave 3, E3-piles), and the
+#: other spelling the fleet uses, so a pile under either name is a pile.
+PILE = "docs/ideas.md"
+PILE_CANDIDATES = (PILE, "IDEAS.md")
+TRAILERS = ".github/workflows/trailers.yml"
 
 ARMS_AUTOMERGE = "gh pr merge --auto"
 
@@ -159,6 +162,18 @@ def _names_test_command(contributing_text: str) -> bool:
     return TEST_COMMAND in contributing_text
 
 
+def _names_trailer(contributing_text: str, trailer: str) -> bool:
+    """True if CONTRIBUTING spells the trailer as a git trailer key
+    (`Idea-Id:`), not merely mentions the word."""
+    return f"`{trailer}:" in contributing_text
+
+
+def _runs_verify_on(workflow_text: str, pile: str) -> bool:
+    """True if the trailers workflow actually runs `reconciler verify` against
+    `pile` with a path the reconciler can resolve."""
+    return f"reconciler verify --repo ./ --doc {pile}" in workflow_text
+
+
 # ── the real tree ────────────────────────────────────────────────────────────
 
 
@@ -192,15 +207,25 @@ def test_contributing_names_the_test_command():
     assert _names_test_command((REPO_ROOT / CONTRIBUTING).read_text(encoding="utf-8"))
 
 
-def test_the_pile_rule_is_vacuous_here_because_this_repo_keeps_no_pile():
-    """Said explicitly rather than left to pass silently: there is no
-    numbered idea pile in this tree, so `required_when_pile_exists` has
-    nothing to bite on and `trailers.yml` is not required. The plant below
-    proves the helper fires on a tree that has one; the day a pile appears
-    here, this test flips and the rule starts biting."""
-    assert _pile(REPO_ROOT) is None, f"a pile appeared at {_pile(REPO_ROOT)}; this rule is no longer vacuous"
-    assert RULES["idea_id_trailer"] == "Idea-Id", "read, not checked: with no pile there is nothing to join"
+def test_trailers_workflow_is_present_because_a_pile_exists():
+    """Wave 2 asserted the pile was absent and this rule vacuous. Wave 3
+    cut the pile, so the rule bites: `docs/ideas.md` exists, therefore
+    `trailers.yml` must, and the published rule set names exactly which
+    workflow that is."""
+    assert _pile(REPO_ROOT) == REPO_ROOT / PILE, "this repo keeps its pile at docs/ideas.md"
+    assert TRAILERS in RULES["required_when_pile_exists"]
     assert _missing_when_pile_exists(REPO_ROOT, RULES["required_when_pile_exists"]) == []
+
+
+def test_the_trailer_convention_is_named_where_a_contributor_reads():
+    """The join key the pile rule exists to verify is `Idea-Id`. CONTRIBUTING
+    must name it (a trailer nobody knows to write is the 0.0 recovery the
+    convention started from), and the trailers workflow must run `verify`
+    on the pile, not merely exist."""
+    trailer = RULES["idea_id_trailer"]
+    assert trailer == "Idea-Id"
+    assert _names_trailer((REPO_ROOT / CONTRIBUTING).read_text(encoding="utf-8"), trailer)
+    assert _runs_verify_on((REPO_ROOT / TRAILERS).read_text(encoding="utf-8"), PILE)
 
 
 # ── the tree readers, planted ────────────────────────────────────────────────
@@ -253,6 +278,18 @@ def test_the_pile_check_fires_on_a_planted_tree_with_a_pile_and_no_verify_gate(t
     gated = _tree(tmp_path, "gated", arms=False, files=(PILE_CANDIDATES[0], *required))
     assert _missing_when_pile_exists(gated, required) == []
     assert _pile(_tree(tmp_path, "pileless", arms=False)) is None
+
+
+def test_the_trailer_checks_catch_a_planted_contributing_and_workflow_that_only_mention_it():
+    """Planted: a CONTRIBUTING that says the word Idea-Id in prose without
+    spelling the trailer, and a workflow that installs the reconciler but
+    never runs verify, or runs it with a `--repo .` the reconciler cannot
+    resolve."""
+    assert not _names_trailer("We like the Idea-Id convention.\n", "Idea-Id")
+    assert _names_trailer("carries an `Idea-Id: willow-ideas-<num>` trailer\n", "Idea-Id")
+    assert not _runs_verify_on("run: pip install willow-reconciler\n", PILE)
+    assert not _runs_verify_on("run: reconciler verify --repo . --doc docs/ideas.md\n", PILE)
+    assert _runs_verify_on("run: reconciler verify --repo ./ --doc docs/ideas.md\n", PILE)
 
 
 def test_the_contributing_check_catches_a_planted_contributing_without_the_command():

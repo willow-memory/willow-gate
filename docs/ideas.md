@@ -63,7 +63,7 @@ the README.
 ## D. Fleet conventions (the willow fleet loop plan)
 
 17. ✅ **shipped**: keep this numbered pile at `docs/ideas.md`, in the reconciler's form, converted from `hardening-plan.md` and the docs' open items, and validated by `reconciler run --repo ./ --doc docs/ideas.md --validate` (Wave 3, E3-piles). The plan stays as the reasoning and points here.
-18. Adopt `Idea-Id` commit trailers (fleet CONVENTION, decision-2026-09-11): a commit that lands an item here carries `Idea-Id: willow-ideas-<num>` in its trailer block, generated with `reconciler id --grep`, never typed; `.github/workflows/trailers.yml` runs `reconciler verify` on every PR so a dangling id (worse than none: rule 2a asserts LANDED from it) fails CI; CONTRIBUTING names the convention; `tests/test_fleet_conventions.py`'s pile rule bites (Wave 3, E3-trailers).
+18. ✅ **shipped**: adopt `Idea-Id` commit trailers (fleet CONVENTION, decision-2026-09-11): a commit that lands an item here carries `Idea-Id: willow-ideas-<num>` in its trailer block, generated with `reconciler id --grep`, never typed; `.github/workflows/trailers.yml` runs `reconciler verify` on every PR so a dangling id (worse than none: rule 2a asserts LANDED from it) fails CI; CONTRIBUTING names the convention; `tests/test_fleet_conventions.py`'s pile rule bites (Wave 3, E3-trailers).
 19. `src/willow_gate/friction_floor.py` is the declared ORIGIN of Forge's vendored copy; Forge pins its own body with a named spelling-only divergence (`re.I` vs `re.IGNORECASE`, typing spellings). Reconcile both sides in one hour (Wave 6): one body, one origin, the divergence either adopted here or dropped there.
 
 ## E. Hygiene
